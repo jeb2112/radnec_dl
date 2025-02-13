@@ -1,0 +1,11 @@
+__pycache__
+*.h5
+*.json
+*.png
+!config_params.json
+!launch.json
+!settings.json
+model*-*
+I?????
+testdata
+bash.exe.stackdump

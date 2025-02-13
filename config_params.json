@@ -1,0 +1,185 @@
+{
+    "consts_int": [
+        {
+            "name": "mres",
+            "default": "64,128,24",
+            "description": "crop matrix"
+        },
+        {
+            "name": "input_dims",
+            "default": "256,256,48",
+            "description": "crop matrix"
+        },
+        {
+            "name": "dof",
+            "default": "5",
+            "description": "degrees-of-freedom"
+        },
+        {
+            "name": "batch",
+            "default": "16",
+            "description": "training batch size"
+        },
+        {
+            "name": "epochs",
+            "default": "500",
+            "description": "number of training epochs"
+        },
+        {
+            "name": "regressionN",
+            "default": "None",
+            "description": "use less data for faster debugging"
+        },
+        {
+            "name": "initial_epoch",
+            "default": "1",
+            "description": "starting epoch if resuming a training run"
+        },
+        {
+            "name": "rseed",
+            "default": "-1",
+            "description": "seed for np.random"
+        },
+        {
+            "name": "croporigin",
+            "default": "8",
+            "description": "random origin shift for xyz crops"
+        }
+    ],
+    "consts_float": [
+        {
+            "name": "lr",
+            "default": ".0002",
+            "description": "learning rate for adam optimizer"
+        },
+        {
+            "name": "L2",
+            "default": ".0005",
+            "description": "L2 regularization"
+        },
+        {
+            "name": "labelvar",
+            "default": "0.0",
+            "description": "optional error variance to add to intrinsic label error variance."
+        }
+    ],
+    "strings": [
+        {
+            "name": "tag",
+            "default": "None",
+            "description": "text extension for model name"
+        },
+        {
+            "name": "model",
+            "default": "resnet",
+            "description": "architecture from model.py to use"
+        },
+        {
+            "name": "modelname",
+            "default": "resnet",
+            "description": "compound name for model output dir"
+        },
+        {
+            "name": "modelpath",
+            "default": "resnet",
+            "description": "fullpath to model outputdir"
+        },
+        {
+            "name": "initial_model",
+            "default": "None",
+            "description": "existing model to use if resuming training"
+        },
+        {
+            "name": "rootdir",
+            "default": "/media/jbishop/Data/ua_align/cnn_2d",
+            "description": "root directory for data input/output"
+        },
+        {
+            "name": "datadir",
+            "default": "/media/jbishop/Data/ua_align/cnn_2d/testdata",
+            "description": "root directory for data input/output"
+        },
+        {
+            "name": "configdir",
+            "default": "/media/jbishop/Data/ua_align/cnn_2d/config",
+            "description": "root directory for data input/output"
+        },
+        {
+            "name": "outputdir",
+            "default": "/media/jbishop/Data/ua_align/cnn_2d/models",
+            "description": "root directory for data input/output"
+        },
+        {
+            "name": "imgdir",
+            "default": "/media/jbishop/Data/ua_align/cnn_2d/img",
+            "description": "root directory for data input/output"
+        }
+    ],
+    "booleans": [
+        {
+            "name": "checkdata",
+            "default": "False",
+            "description": "plots for checking input data in training datagen"
+        },
+        {
+            "name": "checktest",
+            "default": "False",
+            "description": "plots for checking input data in validation datagen"
+        },
+        {
+            "name": "retrain",
+            "default": "True",
+            "description": "start a new training run"
+        },
+        {
+            "name": "repredict",
+            "default": "False",
+            "description": "make prediction from current model"
+        },
+        {
+            "name": "resume",
+            "default": "False",
+            "description": "resume training from an existing model"
+        },
+        {
+            "name": "val_test",
+            "default": "False",
+            "description": "True for separate validation/test data"
+        },
+        {
+            "name": "val_test_shuffle",
+            "default": "True",
+            "description": "True for test/validation data shuffle, use False for debugging"
+        },
+        {
+            "name": "keras_shuffle",
+            "default": "True",
+            "description": "True for keras.fit shuffle"
+        },
+        {
+            "name": "augment",
+            "default": "True",
+            "description": "use random augmentation during training, turn off for debugging"
+        },
+        {
+            "name": "batchnorm",
+            "default": "False",
+            "description": "use batch normalization"
+        },
+        {
+            "name": "labelnorm",
+            "default": "True",
+            "description": "use label normalization to unit variance"
+        },
+        {
+            "name": "labeldist",
+            "default": "False",
+            "description": "False, calculate label distribution for norm, True=reread existing distribution pkl"
+        },
+        {
+            "name": "csvlog",
+            "default": "False",
+            "description": "True, use CSVLogger output to file"
+        }
+    ]
+}
