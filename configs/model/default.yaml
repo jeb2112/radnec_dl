@@ -1,0 +1,5 @@
+_target_: model.nnUNetClassifier.nnUNetClassifier
+encoder:
+  _target_: model.model.nnunet_encoder
+  ckpt_dir: "/media/jbishop/WD4/brainmets/sunnybrook/radnec2/nnUNet_results/Dataset139_RadNec/nnUNetTrainer__nnUNetPlans__2d/fold_0/checkpoint_final.pth"
+

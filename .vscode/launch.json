@@ -139,6 +139,18 @@
             "console": "integratedTerminal",
             "justMyCode": false
         },
+        {
+            "name": "train",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceRoot}/train.py",
+            "args": [
+                // "--modeldir","/media/jbishop/Data/ua_align/cnn_2d/models/resnet-e500-64x128x24-le0.3",
+                // "--predict"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
 
       
     ]

@@ -3,7 +3,7 @@ import os
 import skimage.io as io
 import skimage.transform as trans
 import numpy as np
-from resnet import ResNet50,ResNet39
+# from resnet import ResNet50,ResNet39
 
 import torch
 
@@ -94,25 +94,24 @@ def vgg4(pretrained_weights=None, input_size=(128,128,1), output_size=1, reg=Non
     mf = torch.nn.Dropout(0.5)(mf)
     mf = torch.nn.Linear(output_size, activation="linear", kernel_regularizer=reg)(mf)
     model = torch.nn.Module(inputs = inputs, outputs = mf)
-    model.compile(optimizer = Adam(lr = 2e-4), loss = constrained_mae, metrics = ['mean_squared_error'])
+    model.compile(optimizer = Adam(lr = 2e-4), loss = rmse, metrics = ['mean_squared_error'])
     model.summary()
     if(pretrained_weights):
-    	model.load_weights(pretrained_weights)
+        model.load_weights(pretrained_weights)
     return model
 
 def resnet(pretrained_weights=None, input_size=(32,128,16), output_size=5, reg=None, batchnorm=False, summary=False):
     model = ResNet50(input_shape = input_size, classes = output_size, reg=reg, batchnorm=batchnorm)
-    model.compile(optimizer=Adam(lr=2e-4), loss='mean_absolute_error', metrics=['mean_absolute_error','mean_squared_error'])
+    model.compile(optimizer=torch.optim.Adam(lr=2e-4), loss='mean_absolute_error', metrics=['mean_absolute_error','mean_squared_error'])
     if summary:
         model.summary()
     if pretrained_weights:
         model.load_weights(pretrained_weights)
     return model
 
-def nnunet():
-    ckpt_dir="some.path.../nnUNetTrainer__nnUNetPlans__3d_fullres/fold_0/checkpoint_final.pth"
+def nnunet_encoder(ckpt_dir):
 
-    ckpt = torch.load(ckpt_dir, torch.device('cpu'))
+    ckpt = torch.load(ckpt_dir, torch.device('cpu'),weights_only=False)
 
     plans=ckpt["init_args"]["plans"]
     configuration_name = ckpt['init_args']['configuration']
@@ -138,7 +137,7 @@ def nnunet():
 
 def croporigin(pretrained_weights=None, input_size=(256,256,70), output_size=3, reg='l2', batchnorm=False, summary=False):
     model = ResNet50(input_shape = input_size, classes = output_size, reg=reg)
-    model.compile(optimizer=Adam(lr=2e-4), loss=rmse, metrics=['mean_squared_error'])
+    model.compile(optimizer=torch.optim.Adam(lr=2e-4), loss=rmse, metrics=['mean_squared_error'])
     if summary:
         model.summary()
     if pretrained_weights:
