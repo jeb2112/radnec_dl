@@ -5,10 +5,11 @@ from skimage.transform import resize
 from PIL import ImageOps,Image
 import nibabel as nb
 import glob
+import re
 import copy
 import os
 import matplotlib.pyplot as plt
-from random import sample
+import random
 from sklearn.model_selection import train_test_split
 from datetime import datetime, timezone, timedelta
 from torch.utils.data import Dataset
@@ -20,18 +21,19 @@ import torch
 class nnUNet2dDataset(Dataset):  
     def __init__(  
         self,   
-        datadir,
+        imgdir,
+        lbldir,
         transform = None,
         perturbation = 0,
         padding = 3,  
         image_size = (256, 256),  
         decimate = 0,
-        in_memory = False
+        in_memory = False,
+        rgb = False
     ):  
-        self.datadir = datadir
         self.dataset = {}
-        self.labeldir = os.path.join(self.datadir,'labelsTr')
-        self.imagedir = os.path.join(self.datadir,'imagesTr')
+        self.labeldir = lbldir
+        self.imagedir = imgdir
         self.dataset['lbl'] = sorted(os.listdir(self.labeldir))
         self.n = len(self.dataset['lbl'])
         self.dataset['img'] = sorted(os.listdir(self.imagedir))
@@ -39,7 +41,7 @@ class nnUNet2dDataset(Dataset):
         # self.dataset['img'] = zip(self.dataset['img'][::2],self.dataset['img'][1::2])
         # for common re-sizing
         self.image_size = image_size
-
+        self.rgb = rgb
         # for general image processing
         self.transform = transform
 
@@ -49,34 +51,54 @@ class nnUNet2dDataset(Dataset):
 
         # optionally decimate dataset for fast eval/debug
         if decimate:
+            random.seed(42)
             nsample = int(self.n/decimate)
-            samples = sorted(sample(list(range(self.n)),nsample))
+            samples = sorted(random.sample(list(range(self.n)),nsample))
             self.dataset['lbl'] = [self.dataset['lbl'][l] for l in samples]
             self.dataset['img'] = [self.dataset['img'][l] for l in samples]
-            self.n = nsample
+            self.n = nsample        
 
         # optional inload to memory
         if in_memory:
             self.imgs = []
             self.lbls = []
+            self.lblimgs = []
+            self.cases = {}
+            caseold = ''
             self.in_memory = True
-            for t1,flair in self.dataset['img']:
-                t1 = Image.open(os.path.join(self.imagedir,t1))
+            for lblfile,(t1file,flairfile) in zip(self.dataset['lbl'],self.dataset['img']):
+                t1 = Image.open(os.path.join(self.imagedir,t1file))
                 t1 = ImageOps.pad(t1,self.image_size)
                 t1 = np.array(t1.getdata()).reshape(self.image_size[0],self.image_size[1]).astype(np.float32)
-                flair = Image.open(os.path.join(self.imagedir,flair))
+                flair = Image.open(os.path.join(self.imagedir,flairfile))
                 flair = ImageOps.pad(flair,self.image_size)
                 flair = np.array(flair.getdata()).reshape(self.image_size[0],self.image_size[1]).astype(np.float32)
-           
-                self.imgs.append(np.stack((t1,flair),axis=0))
 
-            for lblfile in self.dataset['lbl']:
-                l_arr = imread(os.path.join(self.labeldir,lblfile))
-                lbl = np.max(l_arr) == 2
-                self.lbls.append(lbl.astype(int))
+                img_stack = np.stack((t1,flair),axis=0)
+                if self.rgb: # need for resnet
+                    img_stack = np.concatenate((img_stack,np.expand_dims(np.mean(img_stack,axis=0),axis=0)))
+                self.imgs.append(img_stack)
 
+            # for lblfile in self.dataset['lbl']:
+                l_arr = Image.open(os.path.join(self.labeldir,lblfile))
+                l_arr = ImageOps.pad(l_arr,self.image_size,method=0)
+                l_arr = np.array(l_arr.getdata()).reshape(self.image_size[0],self.image_size[1]).astype(np.float32)
+                self.lblimgs.append(l_arr)
+                lbl = 1 in np.unique(l_arr)
+                self.lbls.append(int(lbl))
 
+                # record case/dx
+                case = re.search('(M|DSC)_?[0-9]{4}',lblfile)[0]
+                if lbl == 1:
+                    self.cases[case] = 'T'
+                else:
+                    self.cases[case] = 'RN'
+        else:
+            imgs = sorted(os.listdir(self.imagedir))
+            self.idx0 = int(re.search('[0-9]{6}',imgs[0]).group(0)) - 1
+            self.in_memory = False
 
+        return
 
     def __len__(self):  
         return self.n
@@ -88,9 +110,11 @@ class nnUNet2dDataset(Dataset):
         if self.in_memory:
             inputs['img'] = torch.Tensor(self.imgs[idx])
             inputs['lbl'] = torch.tensor(self.lbls[idx],dtype=torch.float32).unsqueeze(0)
+            inputs['lblimg'] = torch.Tensor(self.lblimgs[idx]).unsqueeze(0) # create dummy ch dim
 
         else:
 
+            idx += self.idx0
             t1file = glob.glob(os.path.join(self.imagedir,'img_' + str(idx+1).zfill(6) + '*_0001.png'))[0]
             # t1 = imread(t1file).astype(np.float32)
             t1 = Image.open(t1file)
@@ -104,12 +128,17 @@ class nnUNet2dDataset(Dataset):
             flair = np.array(flair.getdata()).reshape(self.image_size[0],self.image_size[1]).astype(np.float32)
             # explicit batch dimension needed here?
             # inputs['img'] = torch.Tensor(np.stack((t1,flair),axis=0)).unsqueeze(0)
-            inputs['img'] = torch.Tensor(np.stack((t1,flair),axis=0))
-            lfile = glob.glob(os.path.join(self.imagedir,'img_' + str(idx+1).zfill(6) + '*.png'))[0] 
+            imgstack = np.stack((t1,flair),axis=0)
+            if self.rgb:
+                imgstack = np.concatenate((imgstack,np.expand_dims(np.mean(imgstack,axis=0),axis=0)))
+            inputs['img'] = torch.Tensor(imgstack)
+
+            lfile = glob.glob(os.path.join(self.labeldir,'img_' + str(idx+1).zfill(6) + '*.png'))[0] 
             l_arr = imread(lfile)
-            lbl = np.max(l_arr) == 2
+            inputs['lblimg'] = torch.Tensor(l_arr).unsqueeze(0)
+            lbl = 1 in np.unique(l_arr)
             # create a dummy batch dimension for the labels as well
-            inputs['lbl'] = torch.tensor(lbl, dtype=torch.float32).unsqueeze(0)
+            inputs['lbl'] = torch.tensor(int(lbl), dtype=torch.float32).unsqueeze(0)
             # inputs['lbl'] = torch.tensor(lbl, dtype=torch.float32)
             # some general processing could done here explicitly 
 

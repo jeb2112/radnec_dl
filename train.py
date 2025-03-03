@@ -33,7 +33,7 @@ from model.nnUNetClassifier import nnUNetClassifier
 
 def build_dataset(cfg,decimate=0):
 
-    dataset = nnUNet2dDataset(cfg.dataset.path,transform=Compose(cfg.transforms),decimate=decimate,in_memory=True)
+    dataset = nnUNet2dDataset(cfg.imgdata.path,cfg.lbldata.path,transform=Compose(cfg.transforms),decimate=decimate,in_memory=True,rgb=True)
 
     return dataset
 
@@ -74,7 +74,6 @@ def main(cfg:DictConfig):
 
     # any mods needed for aws versus local
     if 'amzn' in platform.release():
-        cfg.pretrained_ckpt_path = '/home/ec2-user/psam_training/uni3d-l/model.pt'
         cfg['train_dataset']['dataset']['path'] = '/home/ec2-user/psam_training/'
         cfg['val_dataset']['dataset']['path'] = '/home/ec2-user/psam_validation/'
 
@@ -323,7 +322,7 @@ def main(cfg:DictConfig):
                 else:
                     metrics = dict(loss=loss.item())
 
-                if cfg.log_with:
+                if cfg.log_with and False:
                     accelerator.log(metrics, step=global_step)
 
                 global_step += 1
@@ -334,6 +333,11 @@ def main(cfg:DictConfig):
                 break
 
         pbar.close()
+
+        # log metrics
+        if cfg.log_with:
+            accelerator.log(metrics, step=global_step)
+
 
         # Save state
         if (epoch + 1) % cfg.get("save_freq", 1) == 0:

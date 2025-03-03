@@ -1,0 +1,15 @@
+defaults:
+  - model: default # default.yaml 
+  - dataset@test_dataset: radnec_test
+  - paths
+
+hydra:
+  run:
+    dir: ${base_dir}/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    
+test_dataloader:
+  batch_size: 1
+  num_workers: 1
+  shuffle: False
+  drop_last: False
+

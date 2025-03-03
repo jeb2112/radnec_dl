@@ -4,141 +4,7 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-        {
-            "name": "dl-download",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceRoot}/dl/dl_main.py",
-            "args": [
-                "--action", "download",
-                // "--filelist", "/home/jbishop/data/todownload/SimulationDataFileList.txt",
-                "--dirlist", "Com02",
-                "--localdir","/media/jbishop/Data/ua_align/cnn_2d/testdata/sharepoint",
-                "--drive","TDC Session Data",
-                // "--tags","DICOM,DCM,DATA",
-                "--tags","TDC"
-            ],
-            "console": "integratedTerminal"
-        },       
-        {
-            "name": "create training",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceRoot}/scripts/create2Ddata.py",
-            "args": [
-                "--inputdir", "/media/jbishop/WD4/brainmets/sunnybrook/RAD NEC/MRI",
-                "--outputdir", "/media/jbishop/WD4/brainmets/sunnybrook/RAD NEC/2ddata/",
-                // "--mres","256,256,48",
-            ],
-            "console": "integratedTerminal",
-            "justMyCode": false
-        },
-        {
-            "name": "create test",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceRoot}/dl/dl_main.py",
-            "args": [
-                "--localdir", "/media/jbishop/Data/ua_align/cnn_2d/testdata/sharepoint",
-                "--outputdir", "/media/jbishop/Data/ua_align/cnn_2d/testdata/",
-                "--action","create_test",
-                "--dof","5",
-                "--mres","64,160,48"
-            ],
-            "console": "integratedTerminal",
-            "justMyCode": false
-        },
-        {
-            "name": "registration",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceRoot}/dl/registration.py",
-            "args": [
-                "--localdir", "/media/jbishop/Data/ua_align/cnn_2d/testdata/sharepoint",
-                "--outputdir", "/media/jbishop/Data/ua_align/cnn_2d/testdata/registration",
-                // "--action","create_test",
-                "--pxpermm","1.0",
-                "--mres","32,128,32",
-                "--create","False"
-            ],
-            "env":{"debugpyPATH":"${workspaceRoot}"}, //hack for package imports
-            "console": "integratedTerminal",
-            "justMyCode": false
-        },
-        {
-            "name": "create origin training",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceRoot}/dl/dl_main.py",
-            "args": [
-                "--localdir", "/media/jbishop/Data/ua_align/cnn_2d/testdata/sharepoint",
-                "--outputdir", "/media/jbishop/Data/ua_align/cnn_2d/testdata/",
-                "--action","create_training",
-                "--mres","256,256,48",
-                "--tag","3",
-                "--dof","3"
-            ],
-            "console": "integratedTerminal",
-            "justMyCode": false
-        },
-        {
-            "name": "debug training",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceRoot}/dl/dl_main.py",
-            "args": [
-                "--localdir", "/media/jbishop/Data/ua_align/cnn_2d/testdata/sharepoint",
-                "--action","create_training",
-                "--rowindex","17",
-                "--mres","32,128,32"
-            ],
-            "console": "integratedTerminal",
-            "justMyCode": false
-        },
-        {
-            "name": "cnn-retrain",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceRoot}/cnn_2d/run_training.py",
-            "args": [
-                "--config","/media/jbishop/Data/ua_align/cnn_2d/config/configlist.txt"
-            ],
-            "console": "integratedTerminal",
-            "justMyCode": false
-        },
-        {
-            "name": "cnn-origin-retrain",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceRoot}/cnn_2d/regression_cnn.py",
-            "args": [
-                "--model", "croporigin",
-                "--retrain",
-                "--epochs","100",
-                "--batch","8",
-                // "--checktest",
-                // "--checkdata",
-                "--dof","3",
-                "--mres","128,128,48",
-                "--tag","dof3-e100-augment-lr2-128x128x48-dl-L2",
-                "--datadir","/media/jbishop/Data/ua_align/cnn_2d/testdata",
-                "--outputdir","/media/jbishop/Data/ua_align/cnn_2d",
-            ],
-            "console": "integratedTerminal",
-            "justMyCode": false
-        },
-        {
-            "name": "cnn-repredict",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceRoot}/cnn_2d/regression_cnn.py",
-            "args": [
-                "--modeldir","/media/jbishop/Data/ua_align/cnn_2d/models/resnet-e500-64x128x24-le0.3",
-                "--predict"
-            ],
-            "console": "integratedTerminal",
-            "justMyCode": false
-        },
+
         {
             "name": "train",
             "type": "debugpy",
@@ -151,7 +17,18 @@
             "console": "integratedTerminal",
             "justMyCode": false
         },
-
+        {
+            "name": "test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceRoot}/test.py",
+            "args": [
+                // "--modeldir","/media/jbishop/Data/ua_align/cnn_2d/models/resnet-e500-64x128x24-le0.3",
+                // "--predict"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
       
     ]
 }

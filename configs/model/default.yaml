@@ -1,5 +1,11 @@
 _target_: model.nnUNetClassifier.nnUNetClassifier
+# pretrained nnunet encoder
 encoder:
   _target_: model.model.nnunet_encoder
-  ckpt_dir: "/media/jbishop/WD4/brainmets/sunnybrook/radnec2/nnUNet_results/Dataset139_RadNec/nnUNetTrainer__nnUNetPlans__2d/fold_0/checkpoint_final.pth"
-
+#   ckpt_dir: "/media/jbishop/WD4/brainmets/sunnybrook/radnec2/nnUNet_results/Dataset139_RadNec/nnUNetTrainer__nnUNetPlans__2d/fold_0/checkpoint_final.pth"
+  ckpt_dir: null
+# untrained resnet
+resnet:
+  _target_: model.model.resnet
+  ckpt_dir: "/media/jbishop/WD4/brainmets/sunnybrook/radnec2/radnec_classify/outputs/2025-02-27/12-23-03/checkpoints/checkpoint_4"
+  num_classes: 1

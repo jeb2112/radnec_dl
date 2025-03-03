@@ -8,35 +8,69 @@ import torch.nn.functional as F
 # from torkit3d.nn.functional import batch_index_select
 
 from model.model import nnunet_encoder
+import torchvision
+from torchvision.models import resnet
+
+class EncoderModel(nn.Module):
+    def __init__(self, encoder, output_layer):
+        super().__init__()
+        self.encoder = encoder
+        self.output_layer = output_layer
+
+    def forward(self, x):
+        x = self.encoder(x)[-1]  # Pass through encoder, take the last item for now
+        x = self.output_layer(x)  # classify
+        return x
+
+class ResNetModel(nn.Module):
+    def __init__(self, encoder, output_layer):
+        super().__init__()
+        self.encoder = encoder
+        self.output_layer = output_layer
+
+    def forward(self, x):
+        x = self.encoder(x)  # Pass through encoder
+        x = self.output_layer(x)  # classify
+        return x
+
+
 
 class nnUNetClassifier(nn.Module):
     def __init__(
         self,
-        encoder: nnunet_encoder
+        encoder: nnunet_encoder,
+        resnet: resnet
     ):
         super().__init__()
-        self.nnunet_encoder = encoder
         self.output_size = 2
 
-        self.output_layer = nn.Sequential(
-            nn.AdaptiveAvgPool2d((1)),  # Global average pooling to (1) spatial size
-            nn.Flatten(),                 # Flatten to (batch_size, num_channels)
-            nn.Linear(512, 512),            
-            nn.ReLU(),                     
-            nn.Dropout(0.5),       
-            nn.Linear(512, 1),    # Final classification layer
-        )
+        if encoder:
+            output_layer = nn.Sequential(
+                nn.AdaptiveAvgPool2d((1)),  # Global average pooling to (1) spatial size
+                nn.Flatten(),                 # Flatten to (batch_size, num_channels)
+                nn.Linear(512, 512),            
+                nn.ReLU(),                     
+                nn.Dropout(0.5),       
+                nn.Linear(512, 1),    # Final classification layer
+            )
+            self.model = EncoderModel(encoder,output_layer)
 
+        elif resnet:
+            # output_layer = nn.Sequential(
+            #     nn.Softmax(dim=1)
+            # )
+            output_layer = nn.Sigmoid()
+            self.model = ResNetModel(resnet,output_layer)
 
     def forward(
         self,
         img: torch.Tensor,
         lbl: torch.tensor,
+        lblimg: torch.Tensor,
         is_eval: bool = False
     ) -> torch.tensor:
 
-        mf = self.nnunet_encoder(img)[-1]
-        mf = self.output_layer(mf)
+        mf = self.model(img)
 
         return mf
 

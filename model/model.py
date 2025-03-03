@@ -3,9 +3,9 @@ import os
 import skimage.io as io
 import skimage.transform as trans
 import numpy as np
-# from resnet import ResNet50,ResNet39
-
+import torchvision
 import torch
+from safetensors.torch import load_file
 
 from nnunet.nnunetv2.utilities.label_handling.label_handling import determine_num_input_channels
 from nnunet.nnunetv2.utilities.plans_handling.plans_handler import PlansManager, ConfigurationManager
@@ -100,17 +100,39 @@ def vgg4(pretrained_weights=None, input_size=(128,128,1), output_size=1, reg=Non
         model.load_weights(pretrained_weights)
     return model
 
-def resnet(pretrained_weights=None, input_size=(32,128,16), output_size=5, reg=None, batchnorm=False, summary=False):
-    model = ResNet50(input_shape = input_size, classes = output_size, reg=reg, batchnorm=batchnorm)
-    model.compile(optimizer=torch.optim.Adam(lr=2e-4), loss='mean_absolute_error', metrics=['mean_absolute_error','mean_squared_error'])
-    if summary:
-        model.summary()
-    if pretrained_weights:
-        model.load_weights(pretrained_weights)
+def resnet(ckpt_dir,num_classes=1):
+    
+    if ckpt_dir is None:
+        model = torchvision.models.resnet50(weights=None,num_classes=num_classes)
+        model.eval()
+    else:
+        state_dict = load_file(os.path.join(ckpt_dir,'model.safetensors'))
+        # accelerate save_state() prefixes the dict keys, filter them out here
+        # or just save weights only to .pth
+        filter_state_dict = {k.replace('model.',''): v for k,v in state_dict.items()}
+        model = torchvision.models.resnet50(num_classes=num_classes)
+
+        model_keys = set(model.state_dict().keys())
+        state_keys = set(filter_state_dict.keys())
+
+        # Find missing and extra keys
+        missing_keys = model_keys - state_keys
+        extra_keys = state_keys - model_keys
+        if len(missing_keys) or len(extra_keys):
+            print("Missing keys in loaded state dict:", missing_keys)
+            print("Extra keys in loaded state dict:", extra_keys)
+
+        model.load_state_dict(filter_state_dict)
+        model.eval()
+
+
     return model
 
 def nnunet_encoder(ckpt_dir):
 
+    if ckpt_dir is None:
+        return None
+    
     ckpt = torch.load(ckpt_dir, torch.device('cpu'),weights_only=False)
 
     plans=ckpt["init_args"]["plans"]

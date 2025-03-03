@@ -1,0 +1,15 @@
+dataset:
+  name: radnec_test
+  imgdir: ${base_dir}/imagesTs
+  lbldir: ${base_dir}/labelsTs
+  split: "test"
+  in_memory: False
+  rgb: True
+  format: png
+  shuffle: False
+transforms:
+  # - _target_: pc_sam.datasets.transforms.NormalizePoints
+  # - _target_: pc_sam.datasets.transforms.NormalizeColor
+  #   mean: 0.5
+  #   std: 0.5
+  - _target_: transforms.ToTensor
