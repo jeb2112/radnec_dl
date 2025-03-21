@@ -23,14 +23,12 @@ class EncoderModel(nn.Module):
         return x
 
 class ResNetModel(nn.Module):
-    def __init__(self, encoder, output_layer):
+    def __init__(self, encoder):
         super().__init__()
         self.encoder = encoder
-        self.output_layer = output_layer
 
     def forward(self, x):
         x = self.encoder(x)  # Pass through encoder
-        x = self.output_layer(x)  # classify
         return x
 
 
@@ -56,11 +54,7 @@ class nnUNetClassifier(nn.Module):
             self.model = EncoderModel(encoder,output_layer)
 
         elif resnet:
-            # output_layer = nn.Sequential(
-            #     nn.Softmax(dim=1)
-            # )
-            output_layer = nn.Sigmoid()
-            self.model = ResNetModel(resnet,output_layer)
+            self.model = ResNetModel(resnet)
 
     def forward(
         self,
