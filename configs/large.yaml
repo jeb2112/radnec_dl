@@ -1,9 +1,9 @@
 defaults:
-  - model: default # default.yaml 
   - dataset@train_dataset: radnec_train 
   - dataset@val_dataset: radnec_val
   - loss: default # 
   - paths
+  - model: default # default.yaml 
 
 hydra:
   run:
@@ -11,7 +11,7 @@ hydra:
     
 # Global variables
 num_samples: 10000
-decimate: 10
+decimate: 0
 
 # For 4GB GPU.
 train_dataloader:

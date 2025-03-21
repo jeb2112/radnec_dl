@@ -29,15 +29,18 @@ class nnUNet2dDataset(Dataset):
         image_size = (256, 256),  
         decimate = 0,
         in_memory = False,
-        rgb = False
+        rgb = False,
+        split=None,
+        seed=42
     ):  
+        dataset = {'train':[],'val':[]}
         self.dataset = {}
         self.labeldir = lbldir
         self.imagedir = imgdir
-        self.dataset['lbl'] = sorted(os.listdir(self.labeldir))
+        dataset['lbl'] = sorted(os.listdir(self.labeldir))
         self.n = len(self.dataset['lbl'])
-        self.dataset['img'] = sorted(os.listdir(self.imagedir))
-        self.dataset['img'] = [(self.dataset['img'][a],self.dataset['img'][a+1]) for a in range(0,2*self.n,2) ]
+        dataset['img'] = sorted(os.listdir(self.imagedir))
+        dataset['img'] = [(self.dataset['img'][a],self.dataset['img'][a+1]) for a in range(0,2*self.n,2) ]
         # self.dataset['img'] = zip(self.dataset['img'][::2],self.dataset['img'][1::2])
         # for common re-sizing
         self.image_size = image_size

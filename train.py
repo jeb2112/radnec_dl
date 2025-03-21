@@ -22,7 +22,6 @@ from omegaconf import OmegaConf,DictConfig
 from torch.utils.data import ConcatDataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-import wandb
 from transforms import Compose
 # from pc_sam.model.loss import compute_iou
 # from pc_sam.model.pc_sam import PointCloudSAM
@@ -31,12 +30,21 @@ from utils.torch_utils import replace_with_fused_layernorm, worker_init_fn
 from dataset.nnUNet2dDataset import nnUNet2dDataset
 from model.nnUNetClassifier import nnUNetClassifier
 
+
+def get_uname():
+    uname = platform.uname()
+    if 'xps15' in uname.node:
+        return '/media/jbishop/WD4/brainmets/sunnybrook/radnec2/radnec_classify'
+    elif 'XPS-8950' in uname.node:
+        return '/home/jbishop/data/radnec2'
+    assert False
+
 def build_dataset(cfg,decimate=0):
-
-    dataset = nnUNet2dDataset(cfg.imgdata.path,cfg.lbldata.path,transform=Compose(cfg.transforms),decimate=decimate,in_memory=True,rgb=True)
-
-    return dataset
-
+    train_dataset = nnUNet2dDataset(cfg.dataset.imgdir,cfg.dataset.lbldir,
+                                    transform=Compose(cfg.transforms),decimate=decimate,in_memory=True,rgb=True,split='train')
+    val_dataset = nnUNet2dDataset(cfg.dataset.imgdir,cfg.dataset.lbldir,
+                                  transform=Compose(cfg.transforms),decimate=decimate,in_memory=True,rgb=True,split='val')
+    return train_dataset,val_dataset
 
 def build_datasets(cfg):
     if "dataset_dict" in cfg:
@@ -47,6 +55,7 @@ def build_datasets(cfg):
     else:
         return build_dataset(cfg)
 
+OmegaConf.register_new_resolver('getuname',get_uname)
 
 @hydra.main(config_path='configs',config_name='large',version_base=None)
 def main(cfg:DictConfig):
@@ -63,7 +72,6 @@ def main(cfg:DictConfig):
 
         with hydra.initialize(args.config_dir, version_base=None):
             cfg = hydra.compose(config_name=args.config, overrides=unknown_args)
-
     OmegaConf.resolve(cfg)
     print(OmegaConf.to_yaml(cfg))
 
@@ -201,10 +209,7 @@ def main(cfg:DictConfig):
     def validate():
         model.eval()
 
-        if cfg.log_with == "wandb":
-            pbar = tqdm(total=len(val_dataloader), miniters=10, maxinterval=60)
-        else:
-            pbar = tqdm(total=len(val_dataloader))
+        pbar = tqdm(total=len(val_dataloader))
 
         vloss = {}
         for i,data in enumerate(val_dataloader):
@@ -356,31 +361,6 @@ def main(cfg:DictConfig):
             break
 
     accelerator.end_training()
-
-
-@torch.no_grad()
-def get_wandb_object_3d(xyz, rgb, gt_masks, pred_masks, prompt_coords, prompt_labels):
-    pcds = []
-    xyz = xyz[0].cpu().numpy()  # [N, 3]
-    rgb = (rgb[0].cpu().numpy() * 0.5 + 0.5) * 255  # [N, 3]
-    gt_mask = gt_masks[0].cpu().numpy()  # [N]
-
-    input_pcd = np.concatenate([xyz, rgb], axis=1)
-    pcds.append(wandb.Object3D(input_pcd))
-
-    gt_pcd = np.concatenate([xyz, gt_mask[:, None]], axis=1)
-    pcds.append(wandb.Object3D(gt_pcd))
-
-    # Only visualize the first sample
-    for i, pred_mask in enumerate(pred_masks):
-        pred_mask = pred_mask[0].cpu().numpy()
-        # pred_pcd = np.concatenate([xyz, pred_mask[:, None]], axis=1)
-        xyz2 = np.concatenate([xyz, prompt_coords[i][0].cpu().numpy()])
-        pred_mask = np.concatenate([pred_mask, prompt_labels[i][0].cpu().numpy() + 2])
-        pred_pcd = np.concatenate([xyz2, pred_mask[:, None]], axis=1)
-        pcds.append(wandb.Object3D(pred_pcd))
-
-    return pcds
 
 
 if __name__ == "__main__":

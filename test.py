@@ -5,6 +5,7 @@ from hydra.core.hydra_config import HydraConfig
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sb
+import platform
 
 import torch
 import torch.nn as nn
@@ -18,6 +19,14 @@ from utils.torch_utils import replace_with_fused_layernorm, worker_init_fn
 
 from dataset.nnUNet2dDataset import nnUNet2dDataset
 from model.nnUNetClassifier import nnUNetClassifier
+
+def get_uname():
+    uname = platform.uname()
+    if 'xps15' in uname.node:
+        return '/media/jbishop/WD4/brainmets/sunnybrook/radnec2/radnec_classify'
+    elif 'XPS-8950' in uname.node:
+        return '/home/jbishop/data/radnec2'
+    assert False
 
 def build_dataset(cfg,decimate=0):
 

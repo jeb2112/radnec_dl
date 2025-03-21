@@ -7,5 +7,6 @@ encoder:
 # untrained resnet
 resnet:
   _target_: model.model.resnet
-  ckpt_dir: "/media/jbishop/WD4/brainmets/sunnybrook/radnec2/radnec_classify/outputs/2025-02-27/12-23-03/checkpoints/checkpoint_4"
+  # ckpt_dir: "${base_dir}/outputs/2025-02-27/12-23-03/checkpoints/checkpoint_4"
+  ckpt_dir: null
   num_classes: 1
