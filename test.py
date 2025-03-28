@@ -29,10 +29,16 @@ def get_uname():
     assert False
 
 def build_dataset(cfg,decimate=0):
-
-    dataset = nnUNet2dDataset(cfg.dataset.imgdir,cfg.dataset.lbldir,in_memory=cfg.dataset.in_memory,rgb=cfg.dataset.rgb)
+    dataset = nnUNet2dDataset(cfg.dataset.imgdir,cfg.dataset.lbldir,
+                                    transform=Compose(cfg.transforms),
+                                    decimate=decimate,
+                                    in_memory=cfg.dataset.keep_in_memory,
+                                    rgb=True,
+                                    split=cfg.dataset.split)
     return dataset
 
+
+OmegaConf.register_new_resolver('getuname',get_uname)
 
 @hydra.main(config_path='configs',config_name='test',version_base=None)
 def main(cfg:DictConfig):
@@ -91,7 +97,6 @@ def main(cfg:DictConfig):
 
     pbar.close()
 
- 
 
 
 if __name__ == "__main__":

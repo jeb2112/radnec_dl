@@ -60,7 +60,6 @@ class nnUNetClassifier(nn.Module):
         self,
         img: torch.Tensor,
         lbl: torch.tensor,
-        lblimg: torch.Tensor,
         is_eval: bool = False
     ) -> torch.tensor:
 

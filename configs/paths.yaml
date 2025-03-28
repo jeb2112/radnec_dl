@@ -1,5 +1,5 @@
 xps15_base_dir: /media/jbishop/WD4/brainmets/sunnybrook/radnec2/radnec_classify
-xps8950_base_dir: /home/jbishop/data/radnec2
+xps8950_base_dir: /home/jbishop/data/radnec_classify
 amzn_base_dir: /home/ec2-user/radnec_classify
 src_dir: /home/src/radnec_dl
 base_dir: ${getuname:}

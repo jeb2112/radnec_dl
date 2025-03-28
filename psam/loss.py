@@ -10,7 +10,7 @@ class Criterion(nn.Module):
         super().__init__()
 
     def forward(self, outputs: torch.Tensor, lbls):
-        criterion=torch.nn.BCEWithLogitsLoss()
+        criterion=torch.nn.CrossEntropyLoss()
         loss = criterion(outputs,lbls)
 
         return loss

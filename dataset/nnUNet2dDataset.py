@@ -10,13 +10,11 @@ import copy
 import os
 import matplotlib.pyplot as plt
 import random
+import json
 from sklearn.model_selection import train_test_split
 from datetime import datetime, timezone, timedelta
 from torch.utils.data import Dataset
 import torch
-
-# from pc_sam.datasets.transforms import normalize_points
-
 
 class nnUNet2dDataset(Dataset):  
     def __init__(  
@@ -30,18 +28,50 @@ class nnUNet2dDataset(Dataset):
         decimate = 0,
         in_memory = False,
         rgb = False,
-        split=None,
-        seed=42
+        split=None, # awkward arrangement. this class is called separately for 'train' and 'val' for unsorted dirs of data.
+        seed=42 # seed is hard-coded here, to get division into 'train' and 'val' without overlap or omission
     ):  
-        dataset = {'train':[],'val':[]}
         self.dataset = {}
         self.labeldir = lbldir
         self.imagedir = imgdir
-        dataset['lbl'] = sorted(os.listdir(self.labeldir))
-        self.n = len(self.dataset['lbl'])
-        dataset['img'] = sorted(os.listdir(self.imagedir))
-        dataset['img'] = [(self.dataset['img'][a],self.dataset['img'][a+1]) for a in range(0,2*self.n,2) ]
-        # self.dataset['img'] = zip(self.dataset['img'][::2],self.dataset['img'][1::2])
+        lblfiles = sorted(os.listdir(self.labeldir))
+        self.n = len(lblfiles)
+        self.lbls = []
+        for l in lblfiles:
+            with open(os.path.join(self.labeldir,l)) as fp:
+                lbl_dx = json.load(fp)['dx']
+                self.lbls.append(int(lbl_dx))
+
+        imgfiles = sorted(os.listdir(self.imagedir))
+        imgfiles = [(imgfiles[a],imgfiles[a+1]) for a in range(0,2*self.n,2) ]
+
+        if split in ['train','val']:
+            imgfiles_train,imgfiles_val,lbls_train,lbls_val = train_test_split(imgfiles,
+                                                                        self.lbls,
+                                                                        test_size=0.2,
+                                                                        random_state=seed,
+                                                                        stratify=self.lbls)
+            
+            if split == 'train':
+                imgfiles = imgfiles_train
+                self.lbls = lbls_train
+            elif split == 'val':
+                imgfiles = imgfiles_val
+                self.lbls = lbls_val
+
+        self.n = len(self.lbls)
+
+        # optionally decimate dataset for fast eval/debug
+        if decimate:
+            if decimate > self.n/decimate/10:
+                raise ValueError('decimation {decimate} too high for n = {self.n}')
+            random.seed(42)
+            nsample = int(self.n/decimate)
+            samples = sorted(random.sample(list(range(self.n)),nsample))
+            self.lbls = [self.lbls[l] for l in samples]
+            imgfiles = [imgfiles[l] for l in samples]
+            self.n = nsample       
+
         # for common re-sizing
         self.image_size = image_size
         self.rgb = rgb
@@ -52,24 +82,12 @@ class nnUNet2dDataset(Dataset):
         self.perturbation = perturbation
         self.padding = padding
 
-        # optionally decimate dataset for fast eval/debug
-        if decimate:
-            random.seed(42)
-            nsample = int(self.n/decimate)
-            samples = sorted(random.sample(list(range(self.n)),nsample))
-            self.dataset['lbl'] = [self.dataset['lbl'][l] for l in samples]
-            self.dataset['img'] = [self.dataset['img'][l] for l in samples]
-            self.n = nsample        
-
-        # optional inload to memory
+        # inload to memory. for now this is the default.
         if in_memory:
             self.imgs = []
-            self.lbls = []
-            self.lblimgs = []
             self.cases = {}
-            caseold = ''
             self.in_memory = True
-            for lblfile,(t1file,flairfile) in zip(self.dataset['lbl'],self.dataset['img']):
+            for lbl_dx,(t1file,flairfile) in zip(self.lbls,imgfiles):
                 t1 = Image.open(os.path.join(self.imagedir,t1file))
                 t1 = ImageOps.pad(t1,self.image_size)
                 t1 = np.array(t1.getdata()).reshape(self.image_size[0],self.image_size[1]).astype(np.float32)
@@ -82,21 +100,16 @@ class nnUNet2dDataset(Dataset):
                     img_stack = np.concatenate((img_stack,np.expand_dims(np.mean(img_stack,axis=0),axis=0)))
                 self.imgs.append(img_stack)
 
-            # for lblfile in self.dataset['lbl']:
-                l_arr = Image.open(os.path.join(self.labeldir,lblfile))
-                l_arr = ImageOps.pad(l_arr,self.image_size,method=0)
-                l_arr = np.array(l_arr.getdata()).reshape(self.image_size[0],self.image_size[1]).astype(np.float32)
-                self.lblimgs.append(l_arr)
-                lbl = 1 in np.unique(l_arr)
-                self.lbls.append(int(lbl))
-
-                # record case/dx
-                case = re.search('(M|DSC)_?[0-9]{4}',lblfile)[0]
-                if lbl == 1:
+                # record case/dx. probably not needed anymore.
+                case = re.search('(M|DSC)_?[0-9]{4}',t1file)[0]
+                if lbl_dx == 1:
                     self.cases[case] = 'T'
-                else:
+                elif lbl_dx == 2:
                     self.cases[case] = 'RN'
-        else:
+                else:
+                    self.cases[case] = 'normal'
+
+        else: # load from file dynamically. not updated lately
             imgs = sorted(os.listdir(self.imagedir))
             self.idx0 = int(re.search('[0-9]{6}',imgs[0]).group(0)) - 1
             self.in_memory = False
@@ -112,10 +125,9 @@ class nnUNet2dDataset(Dataset):
 
         if self.in_memory:
             inputs['img'] = torch.Tensor(self.imgs[idx])
-            inputs['lbl'] = torch.tensor(self.lbls[idx],dtype=torch.float32).unsqueeze(0)
-            inputs['lblimg'] = torch.Tensor(self.lblimgs[idx]).unsqueeze(0) # create dummy ch dim
+            inputs['lbl'] = torch.tensor(self.lbls[idx],dtype=torch.long)
 
-        else:
+        else: # read from file. generally too slow.
 
             idx += self.idx0
             t1file = glob.glob(os.path.join(self.imagedir,'img_' + str(idx+1).zfill(6) + '*_0001.png'))[0]
@@ -138,7 +150,6 @@ class nnUNet2dDataset(Dataset):
 
             lfile = glob.glob(os.path.join(self.labeldir,'img_' + str(idx+1).zfill(6) + '*.png'))[0] 
             l_arr = imread(lfile)
-            inputs['lblimg'] = torch.Tensor(l_arr).unsqueeze(0)
             lbl = 1 in np.unique(l_arr)
             # create a dummy batch dimension for the labels as well
             inputs['lbl'] = torch.tensor(int(lbl), dtype=torch.float32).unsqueeze(0)

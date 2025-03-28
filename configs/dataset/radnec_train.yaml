@@ -1,9 +1,9 @@
 dataset:
   name: radnec_train
-  imgdir: ${base_dir}/nnUNet_raw/Dataset139_RadNecClassify/imagesTr
-  lbldir: ${base_dir}/nnUNet_raw/Dataset139_RadNecClassify/labelsTr
+  imgdir: ${base_dir}/nnUNet_raw/Dataset140_RadNecClassify/imagesTr
+  lbldir: ${base_dir}/nnUNet_raw/Dataset140_RadNecClassify/labelsTr
   split: "train"
-  keep_in_memory: False
+  keep_in_memory: True
   format: png
   shuffle: False
 transforms:

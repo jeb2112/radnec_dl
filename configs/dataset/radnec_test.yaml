@@ -1,9 +1,9 @@
 dataset:
   name: radnec_test
-  imgdir: ${base_dir}/imagesTs
-  lbldir: ${base_dir}/labelsTs
+  imgdir: ${base_dir}/nnUNet_raw/Dataset140_RadNecClassify/imagesTs
+  lbldir: ${base_dir}/nnUNet_raw/Dataset140_RadNecClassify/labelsTs
   split: "test"
-  in_memory: False
+  keep_in_memory: True
   rgb: True
   format: png
   shuffle: False

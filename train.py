@@ -40,11 +40,13 @@ def get_uname():
     assert False
 
 def build_dataset(cfg,decimate=0):
-    train_dataset = nnUNet2dDataset(cfg.dataset.imgdir,cfg.dataset.lbldir,
-                                    transform=Compose(cfg.transforms),decimate=decimate,in_memory=True,rgb=True,split='train')
-    val_dataset = nnUNet2dDataset(cfg.dataset.imgdir,cfg.dataset.lbldir,
-                                  transform=Compose(cfg.transforms),decimate=decimate,in_memory=True,rgb=True,split='val')
-    return train_dataset,val_dataset
+    dataset = nnUNet2dDataset(cfg.dataset.imgdir,cfg.dataset.lbldir,
+                                    transform=Compose(cfg.transforms),
+                                    decimate=decimate,
+                                    in_memory=cfg.dataset.keep_in_memory,
+                                    rgb=True,
+                                    split=cfg.dataset.split)
+    return dataset
 
 def build_datasets(cfg):
     if "dataset_dict" in cfg:
@@ -143,7 +145,7 @@ def main(cfg:DictConfig):
         train_dataset,
         **cfg.train_dataloader,
         worker_init_fn=worker_init_fn,
-        generator=torch.Generator().manual_seed(seed),
+        generator=torch.Generator().manual_seed(seed)
         # collate_fn = collate_fn 
     )
 
@@ -253,8 +255,9 @@ def main(cfg:DictConfig):
         else:
             pbar = tqdm(total=len(train_dataloader))
 
-        p = cProfile.Profile()
-        p.enable()
+        if False:
+            p = cProfile.Profile()
+            p.enable()
 
         for data in train_dataloader:
 

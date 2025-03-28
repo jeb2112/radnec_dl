@@ -1,6 +1,7 @@
 defaults:
   - dataset@train_dataset: radnec_train 
   - dataset@val_dataset: radnec_val
+  - dataset@test_dataset: radnec_test
   - loss: default # 
   - paths
   - model: default # default.yaml 
