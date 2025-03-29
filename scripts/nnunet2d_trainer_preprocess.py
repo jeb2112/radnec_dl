@@ -205,6 +205,15 @@ for ck in cases.keys():
                             lblslice = np.moveaxis(masks[rtag+'lbl'],dim,0)[slice]
                             if np.max(lblslice) > 2:
                                 raise ValueError
+                            # nnunet convention is RN=2,T=1,normal=0                            
+                            lblset = set(np.unique(lblslice)) 
+                            if lblset == {0}:
+                                lbl = [0, 0] # normal slice
+                            elif lblset == {0, 1, 2}:
+                                lbl = [1, 1] # both
+                            else:  # Check individual RN=2 T=1
+                                lbl = [int(1 in lblset), int(2 in lblset)]                           
+
                             for ik in (rtag+'flair+',rtag+'t1+'):
                                 imgslice[ik] = np.moveaxis(imgs[ik],dim,0)[slice]
 
@@ -217,8 +226,7 @@ for ck in cases.keys():
                                         fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '.png'
                                         imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
                                     with open(os.path.join(output_lbldir,lblfname),'w') as fp:
-                                        json.dump({'dx':2-tally[c]['dx']},fp) # ie nnunet convention is RN=2,T=1,normal=0                                   
-                                    # imsave(os.path.join(output_lbldir,lblfname),lblslice,check_contrast=False)
+                                        json.dump({'dx':lbl},fp)                                    
                                 elif len(np.where(lblslice)[0]) > 0: # don't want to use these cross-sections at all.
                                     continue
                                 # output a normal slice
@@ -228,8 +236,7 @@ for ck in cases.keys():
                                         fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '.png'
                                         imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
                                     with open(os.path.join(output_lbldir,lblfname),'w') as fp:
-                                        json.dump({'dx':0},fp)                                    
-                                    # imsave(os.path.join(output_lbldir,lblfname),lblslice*0,check_contrast=False)
+                                        json.dump({'dx':lbl},fp)                                    
                                 else:
                                     continue
 

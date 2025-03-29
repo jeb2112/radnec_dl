@@ -6,16 +6,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sb
 import platform
+import os
+import pickle
 
 import torch
 import torch.nn as nn
+from torch.utils.data import DataLoader
+import torch.nn.functional as F
+from transforms import Compose
+from utils.torch_utils import replace_with_fused_layernorm, worker_init_fn
+
 from accelerate.utils import set_seed, tqdm
 from datasets import DatasetDict, load_dataset, load_from_disk
 from omegaconf import OmegaConf,DictConfig
-from torch.utils.data import DataLoader
-
-from transforms import Compose
-from utils.torch_utils import replace_with_fused_layernorm, worker_init_fn
 
 from dataset.nnUNet2dDataset import nnUNet2dDataset
 from model.nnUNetClassifier import nnUNetClassifier
@@ -63,7 +66,7 @@ def main(cfg:DictConfig):
     # Setup model
     # ---------------------------------------------------------------------------- #
     # set_seed(seed)
-    model: nnUNetClassifier = hydra.utils.instantiate(cfg.model)
+    model: nnUNetClassifier = hydra.utils.instantiate(cfg.test_dataset.model)
 
     # ---------------------------------------------------------------------------- #
     # Setup dataloaders
@@ -82,20 +85,40 @@ def main(cfg:DictConfig):
     # test loop
     # ---------------------------------------------------------------------------- #
     
-    pbar = tqdm(total=len(test_dataloader))
 
-    res = []
-    for i,data in enumerate(test_dataloader):
-        outputs = model(**data)
-        res.append((data['lbl'].item(),outputs.item()))
-        pbar.update(1)
+    outputdir = os.sep+os.path.join(*cfg.test_dataset.model.resnet.ckpt_dir.split(os.sep)[:-2])
+    fpath = os.path.join(outputdir,'results.pkl')
+    if os.path.exists(fpath):
+        with open(fpath,'rb') as fp:
+            res = pickle.load(fp)
+
+    else:
+
+        pbar = tqdm(total=len(test_dataloader))
+        res = []
+        for i,data in enumerate(test_dataloader):
+            logits = model(**data)
+            probs = F.softmax(logits.data, dim=1)
+            arg = torch.argmax(probs,dim=1)
+            # pred = np.max(probs)
+            lbl = data['lbl'].item()
+            res.append((lbl,probs[0,lbl].item()))
+            pbar.update(1)
+        pbar.close()
+
+        with open(fpath,'wb') as fp:
+            pickle.dump(res,fp)
 
     x = [r[0] for r in res]
     y = [r[1] for r in res]
 
-    plt.scatter(x,y)
-
-    pbar.close()
+    data = {'category':x,'value':y}
+    # sb.scatterplot(x=x,y=y)
+    plt.figure(1),plt.clf()
+    plt.subplot(1,2,1)
+    sb.stripplot(x='category',y='value',data=data,jitter=True,size=1)
+    plt.subplot(1,2,2)
+    sb.boxplot(x='category',y='value',data=data)
 
 
 

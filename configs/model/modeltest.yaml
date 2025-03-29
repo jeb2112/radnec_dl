@@ -4,9 +4,8 @@ encoder:
   _target_: model.model.nnunet_encoder
 #   ckpt_dir: "/media/jbishop/WD4/brainmets/sunnybrook/radnec2/nnUNet_results/Dataset139_RadNec/nnUNetTrainer__nnUNetPlans__2d/fold_0/checkpoint_final.pth"
   ckpt_dir: null
-# untrained resnet
+# trained resnet
 resnet:
   _target_: model.model.resnet
-  # ckpt_dir: "${base_dir}/outputs/2025-02-27/12-23-03/checkpoints/checkpoint_4"
-  ckpt_dir: null
+  ckpt_dir: "${base_dir}/outputs/2025-03-28/15-02-48/checkpoints/checkpoint_4"
   num_classes: 2

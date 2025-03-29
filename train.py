@@ -39,13 +39,14 @@ def get_uname():
         return '/home/jbishop/data/radnec2'
     assert False
 
-def build_dataset(cfg,decimate=0):
+def build_dataset(cfg,decimate=0,num_classes=2):
     dataset = nnUNet2dDataset(cfg.dataset.imgdir,cfg.dataset.lbldir,
                                     transform=Compose(cfg.transforms),
                                     decimate=decimate,
                                     in_memory=cfg.dataset.keep_in_memory,
                                     rgb=True,
-                                    split=cfg.dataset.split)
+                                    split=cfg.dataset.split,
+                                    num_classes=num_classes)
     return dataset
 
 def build_datasets(cfg):
@@ -139,7 +140,9 @@ def main(cfg:DictConfig):
     # Setup dataloaders
     # ---------------------------------------------------------------------------- #
     train_dataset_cfg = hydra.utils.instantiate(cfg.train_dataset)
-    train_dataset = build_dataset(train_dataset_cfg,decimate=cfg.decimate)
+    train_dataset = build_dataset(train_dataset_cfg,
+                                  num_classes=cfg.model.resnet.num_classes,
+                                  decimate=cfg.decimate)
 
     train_dataloader = DataLoader(
         train_dataset,
@@ -151,7 +154,7 @@ def main(cfg:DictConfig):
 
     if cfg.val_freq > 0:
         val_dataset_cfg = hydra.utils.instantiate(cfg.val_dataset)
-        val_dataset = build_dataset(val_dataset_cfg,decimate=cfg.decimate)
+        val_dataset = build_dataset(val_dataset_cfg,decimate=cfg.decimate,num_classes=cfg.model.resnet.num_classes)
         val_dataloader = DataLoader(
             val_dataset, **cfg.val_dataloader, worker_init_fn=worker_init_fn
         )

@@ -1,3 +1,6 @@
+defaults:
+  - /model: modeltest # with checkpoint 
+
 dataset:
   name: radnec_test
   imgdir: ${base_dir}/nnUNet_raw/Dataset140_RadNecClassify/imagesTs

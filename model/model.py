@@ -103,14 +103,22 @@ def vgg4(pretrained_weights=None, input_size=(128,128,1), output_size=1, reg=Non
 def resnet(ckpt_dir,num_classes=1):
     
     if ckpt_dir is None:
-        model = torchvision.models.resnet50(weights=None,num_classes=num_classes)
+        # model = torchvision.models.resnet50(weights=None,num_classes=num_classes)
+        model = torchvision.models.resnet18(weights=None,num_classes=num_classes)
         model.eval()
     else:
         state_dict = load_file(os.path.join(ckpt_dir,'model.safetensors'))
         # accelerate save_state() prefixes the dict keys, filter them out here
         # or just save weights only to .pth
-        filter_state_dict = {k.replace('model.',''): v for k,v in state_dict.items()}
-        model = torchvision.models.resnet50(num_classes=num_classes)
+        # Iterate through the keys and find one that contains 'layer'. 'layer' would
+        # be common to just about any model so a reliable indicator that prefixes have been parsed. 
+        prefix = ''
+        for key in state_dict.keys():
+            if 'layer' in key:
+                prefix = key.split('layer')[0]  # Take everything before 'layer'
+                break
+        filter_state_dict = {k.replace(prefix,''): v for k,v in state_dict.items()}
+        model = torchvision.models.resnet18(num_classes=num_classes)
 
         model_keys = set(model.state_dict().keys())
         state_keys = set(filter_state_dict.keys())

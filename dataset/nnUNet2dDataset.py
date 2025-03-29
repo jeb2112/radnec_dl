@@ -21,6 +21,7 @@ class nnUNet2dDataset(Dataset):
         self,   
         imgdir,
         lbldir,
+        num_classes = 2,
         transform = None,
         perturbation = 0,
         padding = 3,  
@@ -34,13 +35,14 @@ class nnUNet2dDataset(Dataset):
         self.dataset = {}
         self.labeldir = lbldir
         self.imagedir = imgdir
+        self.num_classes = num_classes
         lblfiles = sorted(os.listdir(self.labeldir))
         self.n = len(lblfiles)
         self.lbls = []
         for l in lblfiles:
             with open(os.path.join(self.labeldir,l)) as fp:
                 lbl_dx = json.load(fp)['dx']
-                self.lbls.append(int(lbl_dx))
+                self.lbls.append(lbl_dx)
 
         imgfiles = sorted(os.listdir(self.imagedir))
         imgfiles = [(imgfiles[a],imgfiles[a+1]) for a in range(0,2*self.n,2) ]
@@ -125,7 +127,12 @@ class nnUNet2dDataset(Dataset):
 
         if self.in_memory:
             inputs['img'] = torch.Tensor(self.imgs[idx])
-            inputs['lbl'] = torch.tensor(self.lbls[idx],dtype=torch.long)
+            # label_vector = torch.zeros(self.num_classes,dtype=torch.float32)
+            # for cidx in self.lbls[idx]:
+            #     label_vector[cidx] = 1.0
+            # lblvec = torch.tensor([int(1 in self.lbls[idx]), int(2 in self.)], dtype=torch.float32)            
+            inputs['lbl'] = torch.tensor(self.lbls[idx],dtype=torch.float)
+            # inputs['lbl'] = label_vector
 
         else: # read from file. generally too slow.
 
