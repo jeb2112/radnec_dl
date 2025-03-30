@@ -30,18 +30,48 @@ from utils.torch_utils import replace_with_fused_layernorm, worker_init_fn
 from dataset.nnUNet2dDataset import nnUNet2dDataset
 from model.nnUNetClassifier import nnUNetClassifier
 
-
+# convenience functions for config .yaml's
 def get_uname():
     uname = platform.uname()
     if 'xps15' in uname.node:
-        return '/media/jbishop/WD4/brainmets/sunnybrook/radnec2/radnec_classify'
+        return '/media/jbishop/WD4/brainmets/sunnybrook/radnec2'
     elif 'XPS-8950' in uname.node:
         return '/home/jbishop/data/radnec2'
     assert False
 
-def build_dataset(cfg,decimate=0,num_classes=2):
+def compute_mu_std(dataset):
+    dataloader = DataLoader(
+        dataset,
+        batch_size=2,
+        shuffle=False
+        # collate_fn = collate_fn 
+    )
+    mean = 0.0
+    std = 0.0
+    total_samples = 0
+
+    for data in dataloader:
+        images = data['img']
+        batch_samples = images.size(0)
+        images = images.view(batch_samples, images.size(1), -1)  # Flatten
+        mean += images.mean(dim=2).sum(dim=0)
+        std += images.std(dim=2).sum(dim=0)
+        total_samples += batch_samples
+
+    mean /= total_samples
+    std /= total_samples
+
+    return mean, std
+
+OmegaConf.register_new_resolver('getuname',get_uname)
+OmegaConf.register_new_resolver('computemustd',compute_mu_std)
+
+
+# dataset functions
+def build_dataset(cfg,decimate=0,num_classes=2,transform=None):
     dataset = nnUNet2dDataset(cfg.dataset.imgdir,cfg.dataset.lbldir,
-                                    transform=Compose(cfg.transforms),
+                                    # transform=Compose(cfg.transforms),
+                                    transform=transform,
                                     decimate=decimate,
                                     in_memory=cfg.dataset.keep_in_memory,
                                     rgb=True,
@@ -58,7 +88,6 @@ def build_datasets(cfg):
     else:
         return build_dataset(cfg)
 
-OmegaConf.register_new_resolver('getuname',get_uname)
 
 @hydra.main(config_path='configs',config_name='large',version_base=None)
 def main(cfg:DictConfig):
@@ -140,9 +169,11 @@ def main(cfg:DictConfig):
     # Setup dataloaders
     # ---------------------------------------------------------------------------- #
     train_dataset_cfg = hydra.utils.instantiate(cfg.train_dataset)
+    train_transform = hydra.utils.instantiate(cfg.train_dataset.transforms)
     train_dataset = build_dataset(train_dataset_cfg,
                                   num_classes=cfg.model.resnet.num_classes,
-                                  decimate=cfg.decimate)
+                                  decimate=cfg.decimate,
+                                  transform=train_transform)
 
     train_dataloader = DataLoader(
         train_dataset,
@@ -152,9 +183,27 @@ def main(cfg:DictConfig):
         # collate_fn = collate_fn 
     )
 
+    # augmentation normalize according to data stats
+    mu,std = compute_mu_std(train_dataset)
+    for transform in cfg.train_dataset.transforms.transforms:
+        if "_target_" in transform and transform["_target_"] == "torchvision.transforms.Normalize":
+            transform.mean = mu.tolist()
+            transform.std = std.tolist()
+            break  
+
     if cfg.val_freq > 0:
+        val_transform = hydra.utils.instantiate(cfg.val_dataset.transforms)
+        for transform in cfg.val_dataset.transforms.transforms:
+            if "_target_" in transform and transform["_target_"] == "torchvision.transforms.Normalize":
+                transform.mean = mu.tolist()
+                transform.std = std.tolist()
+                break  
+
         val_dataset_cfg = hydra.utils.instantiate(cfg.val_dataset)
-        val_dataset = build_dataset(val_dataset_cfg,decimate=cfg.decimate,num_classes=cfg.model.resnet.num_classes)
+        val_dataset = build_dataset(val_dataset_cfg,
+                                    decimate=cfg.decimate,
+                                    num_classes=cfg.model.resnet.num_classes,
+                                    transform=val_transform)
         val_dataloader = DataLoader(
             val_dataset, **cfg.val_dataloader, worker_init_fn=worker_init_fn
         )

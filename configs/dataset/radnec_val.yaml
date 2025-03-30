@@ -6,18 +6,20 @@ dataset:
   keep_in_memory: True
   format: png
   shuffle: True
+
 transforms:
-  # - _target_: pc_sam.datasets.transforms.NormalizePoints
-  # - _target_: pc_sam.datasets.transforms.NormalizeColor
-  #   mean: 0.5
-  #   std: 0.5
-  # - _target_: pc_sam.datasets.transforms.RandomSampleMask
-  #   num_samples: 2
-  # - _target_: pc_sam.datasets.transforms.RandomSample
-  #   num_samples: ${num_samples}
-  # - _target_: pc_sam.datasets.transforms.RandomScale
-  #   low: 0.8
-  #   high: 1.0
-  # - _target_: pc_sam.datasets.transforms.RandomRotatePerbuate
-  # - _target_: pc_sam.datasets.transforms.RandomRotateAlongAxis
-  # - _target_: pc_sam.datasets.transforms.ToTensor
+  _target_: torchvision.transforms.Compose
+  transforms:
+    - _target_: torchvision.transforms.RandomHorizontalFlip
+      p: 0.5
+    - _target_: torchvision.transforms.RandomRotation
+      degrees: 15
+    - _target_: torchvision.transforms.ColorJitter
+      brightness: 0.2
+      contrast: 0.2
+      saturation: 0.2
+      hue: 0.1
+    - _target_: torchvision.transforms.ToTensor
+    - _target_: torchvision.transforms.Normalize
+      mean: [0.485, 0.456, 0.406]
+      std: [0.229, 0.224, 0.225]  
