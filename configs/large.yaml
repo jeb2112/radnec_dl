@@ -12,7 +12,7 @@ hydra:
     
 # Global variables
 num_samples: 10000
-decimate: 20
+decimate: 0
 image_size: [256,256]
 
 # For 4GB GPU.

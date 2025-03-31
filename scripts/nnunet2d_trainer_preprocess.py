@@ -119,6 +119,22 @@ for ck in cases.keys():
     os.makedirs(output_imgdir,exist_ok=True)
     os.makedirs(output_lbldir,exist_ok=True)
 
+    # arbitrary rotation for oblique slicing
+    refvec = np.array([1,0,0],dtype=float)
+    targetlist = [refvec,np.ones((3))/np.sqrt(3),np.array([1,-1,1])/np.sqrt(3)]
+    ntarget = len(targetlist)
+    r_obl = {}
+    for i,target in enumerate(targetlist): 
+        Raxis = np.cross(refvec,target)
+        Raxis /= np.linalg.norm(Raxis)
+        Rangle = np.arccos(np.dot(refvec,target))
+        if np.abs(Rangle) != 0.0:
+            skewsim_matrix = np.array([[0,-Raxis[2],Raxis[1]],[Raxis[2],0,-Raxis[0]],[-Raxis[1],Raxis[0],0]])
+            # R = np.eye(3) + np.sin(Rangle) * skewsim_matrix + (1-np.cos(Rangle)) * np.matmul(skewsim_matrix,skewsim_matrix)
+            r_obl[str(i)] = Rotation.from_rotvec(Rangle*Raxis,degrees=False).as_matrix()
+        else:
+            r_obl[str(i)] = np.eye(3)
+
     for c in cases[ck]:
         print('case = {}'.format(c))
 
@@ -132,30 +148,18 @@ for ck in cases.keys():
         for ddict in tally[c]['dirs']:
 
             imgs = {}
+            Rimgs = {str(i):{} for i in range(ntarget)}
+            Rlbls = {str(i):None for i in range(ntarget)}
             study = os.path.split(ddict['dir'])[1]
-
-            # arbitrary rotation for oblique slicing
-            refvec = np.array([1,0,0])
-            target = np.ones((3))/np.sqrt(3)
-            Raxis = np.cross(refvec,target)
-            Raxis /= np.linalg.norm(Raxis)
-            Rangle = np.arccos(np.dot(refvec,target))
-            skewsim_matrix = np.array([[0,-Raxis[2],Raxis[1]],[Raxis[2],0,-Raxis[0]],[-Raxis[1],Raxis[0],0]])
-            # R = np.eye(3) + np.sin(Rangle) * skewsim_matrix + (1-np.cos(Rangle)) * np.matmul(skewsim_matrix,skewsim_matrix)
-            r_obl = Rotation.from_rotvec(Rangle*Raxis,degrees=False).as_matrix()
 
             for ik in ['flair+','t1+']:
                 filename = glob.glob(os.path.join(ddict['dir'],ik+'_processed*'))[0]
                 imgs[ik],affine = loadnifti(os.path.split(filename)[1],os.path.join(cdir,os.path.split(filename)[0]),type='uint8')
                 assert np.max(imgs[ik] == 255)
-                if False:
-                    affine[:3,:3] = np.matmul(affine[:3,:3],r_obl)
-                    img_nb_res = resample_from_to(img_nb,(img_nb.shape,affine))
-                    imgs['R'+ik] = np.clip(img_nb_res.dataobj.astype('uint8'),a_min=0,a_max=None)
-                else:
+                for k in r_obl.keys():
                     center = np.array(np.shape(imgs[ik]))/2
-                    offset = center - np.matmul(r_obl,center)
-                    imgs['R'+ik] = affine_transform(imgs[ik],r_obl,offset=offset,order=3)
+                    offset = center - np.matmul(r_obl[k],center)
+                    Rimgs[k][ik] = affine_transform(imgs[ik],r_obl[k],offset=offset,order=3)
 
             for tc_file,t_file in zip(ddict['TC'],ddict['T']):
                 masks = {}
@@ -187,22 +191,26 @@ for ck in cases.keys():
                         raise ValueError
                 else: # for test/debugging pngs with viewable contrast
                     masks['lbl'] = 127*masks['T'] + 255*(masks['TC'] - masks['T'])
-                masks['Rlbl'] = affine_transform(masks['lbl'],r_obl,offset=offset,order=0)
+                for k in r_obl.keys():
+                    center = np.array(np.shape(masks['lbl']))/2
+                    offset = center - np.matmul(r_obl[k],center)
+                    Rlbls[k] = affine_transform(masks['lbl'],r_obl[k],offset=offset,order=0)
 
                 # oblique,orthogonal slices
-                for rtag in ['R','']:
+                # for rtag in ['R','']:
+                for k in r_obl.keys():
                     if normalslice_flag: # use all brain volume slices. since brains are not extracted
                         # use estimate to exclude the air background
                         noise = np.max(imgs['t1+'][:,0,0])
-                        pset = np.where( (imgs[rtag+'t1+'] > 10*noise) & (imgs[rtag+'flair+'] > 10*noise) )
+                        pset = np.where( (Rimgs[k]['t1+'] > 10*noise) & (Rimgs[k]['flair+'] > 10*noise) )
                     else: # create only slices with a lesion cross-section.
-                        pset = np.where(masks[rtag+'lbl'])
+                        pset = np.where(Rlbls[k])
                     npixels = len(pset[0])
                     for dim in range(3):
                         slices = np.unique(pset[dim])
                         for slice in slices:
                             imgslice = {}
-                            lblslice = np.moveaxis(masks[rtag+'lbl'],dim,0)[slice]
+                            lblslice = np.moveaxis(Rlbls[k],dim,0)[slice]
                             if np.max(lblslice) > 2:
                                 raise ValueError
                             # nnunet convention is RN=2,T=1,normal=0                            
@@ -214,16 +222,16 @@ for ck in cases.keys():
                             else:  # Check individual RN=2 T=1
                                 lbl = [int(1 in lblset), int(2 in lblset)]                           
 
-                            for ik in (rtag+'flair+',rtag+'t1+'):
-                                imgslice[ik] = np.moveaxis(imgs[ik],dim,0)[slice]
+                            for ik in ('flair+','t1+'):
+                                imgslice[ik] = np.moveaxis(Rimgs[k][ik],dim,0)[slice]
 
                             if normalslice_flag:
                                 # cv2.imwrite(os.path.join(output_lbldir,fname),lblslice)
                                 lblfname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '.json'
                                 # output a tumor slice
                                 if len(np.where(lblslice)[0]) > 49:
-                                    for ktag,ik in zip(('0003','0001'),(rtag+'flair+',rtag+'t1+')):
-                                        fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '.png'
+                                    for ktag,ik in zip(('0003','0001'),('flair+','t1+')):
+                                        fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '_' + 'r' + k + '.png'
                                         imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
                                     with open(os.path.join(output_lbldir,lblfname),'w') as fp:
                                         json.dump({'dx':lbl},fp)                                    
@@ -232,15 +240,15 @@ for ck in cases.keys():
                                 # output a normal slice
                                 elif random.random() < 0.05:
                                     # don't need all the normal slices just a few
-                                    for ktag,ik in zip(('0003','0001'),(rtag+'flair+',rtag+'t1+')):
-                                        fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '.png'
+                                    for ktag,ik in zip(('0003','0001'),('flair+','t1+')):
+                                        fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '_' + 'r' + k + '.png'
                                         imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
                                     with open(os.path.join(output_lbldir,lblfname),'w') as fp:
                                         json.dump({'dx':lbl},fp)                                    
                                 else:
                                     continue
 
-                            else:
+                            else: # no normal slices. not updated.
                                 if len(np.where(lblslice)[0]) > 49:
                                     fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '.png'
                                     imsave(os.path.join(output_lbldir,fname),lblslice,check_contrast=False)

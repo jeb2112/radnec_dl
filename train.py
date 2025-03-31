@@ -168,6 +168,19 @@ def main(cfg:DictConfig):
     # ---------------------------------------------------------------------------- #
     # Setup dataloaders
     # ---------------------------------------------------------------------------- #
+    # augmentation. normalize according to data stats
+    pre_dataset_cfg = hydra.utils.instantiate(cfg.train_dataset)
+    pre_dataset = build_dataset(pre_dataset_cfg,
+                                  num_classes=cfg.model.resnet.num_classes,
+                                  decimate=cfg.decimate)
+    mu,std = compute_mu_std(pre_dataset)
+    for transform in cfg.train_dataset.transforms.transforms:
+        if "_target_" in transform and transform["_target_"] == "torchvision.transforms.Normalize":
+            transform.mean = mu.tolist()
+            transform.std = std.tolist()
+            break  
+
+    # now do the initialization with the runtime stats.
     train_dataset_cfg = hydra.utils.instantiate(cfg.train_dataset)
     train_transform = hydra.utils.instantiate(cfg.train_dataset.transforms)
     train_dataset = build_dataset(train_dataset_cfg,
@@ -183,22 +196,16 @@ def main(cfg:DictConfig):
         # collate_fn = collate_fn 
     )
 
-    # augmentation normalize according to data stats
-    mu,std = compute_mu_std(train_dataset)
-    for transform in cfg.train_dataset.transforms.transforms:
-        if "_target_" in transform and transform["_target_"] == "torchvision.transforms.Normalize":
-            transform.mean = mu.tolist()
-            transform.std = std.tolist()
-            break  
+
 
     if cfg.val_freq > 0:
-        val_transform = hydra.utils.instantiate(cfg.val_dataset.transforms)
         for transform in cfg.val_dataset.transforms.transforms:
             if "_target_" in transform and transform["_target_"] == "torchvision.transforms.Normalize":
                 transform.mean = mu.tolist()
                 transform.std = std.tolist()
                 break  
 
+        val_transform = hydra.utils.instantiate(cfg.val_dataset.transforms)
         val_dataset_cfg = hydra.utils.instantiate(cfg.val_dataset)
         val_dataset = build_dataset(val_dataset_cfg,
                                     decimate=cfg.decimate,
