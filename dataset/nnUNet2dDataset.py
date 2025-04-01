@@ -197,3 +197,30 @@ class nnUNet2dDataset(Dataset):
             os.system('gzip --force "{}"'.format(filename))
 
 
+    # calculate weights for data imbalance
+    def balancedata(self):
+        listlbls = np.array(self.lbls)
+        lbldict = {'neither':[0,0],'T':[1,0],'RN':[0,1],'both':[1,1]}
+        counts = {}
+        for k in lbldict.keys():
+            counts[k] = np.sum(np.all(listlbls == lbldict[k],axis=1))
+        total_samples = sum(counts.values())  # 4428 + 1013 + 7846 + 3157
+
+        # Compute total positive counts for each class (includes 'both')
+        num_pos_T = counts['T'] + counts['both']
+        num_pos_RN = counts['RN'] + counts['both']
+
+        # Compute total negative counts per class
+        num_neg_T = total_samples - num_pos_T
+        num_neg_RN = total_samples - num_pos_RN
+
+        # Compute pos_weight = (negative cases) / (positive cases)
+        pos_weight_T = num_neg_T / num_pos_T
+        pos_weight_RN = num_neg_RN / num_pos_RN
+
+        # Convert to PyTorch tensor for BCEWithLogitsLoss
+        pos_weight = torch.tensor([pos_weight_T, pos_weight_RN], dtype=torch.float32)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        pos_weight = pos_weight.to(device)
+
+        return pos_weight

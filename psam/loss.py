@@ -6,12 +6,11 @@ import torch.nn.functional as F
 from torchvision.ops import sigmoid_focal_loss
 
 class Criterion(nn.Module):
-    def __init__(self):
+    def __init__(self,pos_weight=None):
         super().__init__()
+        self.criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 
     def forward(self, outputs: torch.Tensor, lbls):
-        # criterion=torch.nn.CrossEntropyLoss()
-        criterion=torch.nn.BCEWithLogitsLoss()
-        loss = criterion(outputs,lbls)
+        loss = self.criterion(outputs,lbls)
 
         return loss

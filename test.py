@@ -8,6 +8,7 @@ import seaborn as sb
 import platform
 import os
 import pickle
+import pandas as pd
 
 import torch
 import torch.nn as nn
@@ -46,6 +47,7 @@ OmegaConf.register_new_resolver('getuname',get_uname)
 @hydra.main(config_path='configs',config_name='test',version_base=None)
 def main(cfg:DictConfig):
 
+
     OmegaConf.resolve(cfg)
     print(OmegaConf.to_yaml(cfg))
 
@@ -72,19 +74,7 @@ def main(cfg:DictConfig):
     # Setup dataloaders
     # ---------------------------------------------------------------------------- #
     test_dataset_cfg = hydra.utils.instantiate(cfg.test_dataset)
-    test_dataset = build_dataset(test_dataset_cfg)
 
-    test_dataloader = DataLoader(
-        test_dataset,
-        **cfg.test_dataloader,
-        worker_init_fn=worker_init_fn,
-        generator=torch.Generator().manual_seed(seed),
-    )
-
-    # ---------------------------------------------------------------------------- #
-    # test loop
-    # ---------------------------------------------------------------------------- #
-    
 
     outputdir = os.sep+os.path.join(*cfg.test_dataset.model.resnet.ckpt_dir.split(os.sep)[:-2])
     fpath = os.path.join(outputdir,'results.pkl')
@@ -94,6 +84,18 @@ def main(cfg:DictConfig):
 
     else:
 
+        test_dataset = build_dataset(test_dataset_cfg)
+        test_dataloader = DataLoader(
+            test_dataset,
+            **cfg.test_dataloader,
+            worker_init_fn=worker_init_fn,
+            generator=torch.Generator().manual_seed(seed),
+        )
+
+        # ---------------------------------------------------------------------------- #
+        # test loop
+        # ---------------------------------------------------------------------------- #
+    
         pbar = tqdm(total=len(test_dataloader))
         res = []
         for i,data in enumerate(test_dataloader):
@@ -101,24 +103,76 @@ def main(cfg:DictConfig):
             probs = F.softmax(logits.data, dim=1)
             arg = torch.argmax(probs,dim=1)
             # pred = np.max(probs)
-            lbl = data['lbl'].item()
-            res.append((lbl,probs[0,lbl].item()))
+            lbl = data['lbl'].numpy()[0]
+            res.append((data['lbl'].numpy()[0],probs[0].numpy()))
             pbar.update(1)
         pbar.close()
 
         with open(fpath,'wb') as fp:
             pickle.dump(res,fp)
 
-    x = [r[0] for r in res]
-    y = [r[1] for r in res]
+    labels = np.array([r[0] for r in res])
+    predictions = np.array([r[1] for r in res])
+    categories = ['T','RN']  # Category names
 
-    data = {'category':x,'value':y}
-    # sb.scatterplot(x=x,y=y)
+    df = pd.DataFrame({
+        "Label T": labels[:, 0], "Label RN": labels[:, 1],  
+        "Pred T": predictions[:, 0], "Pred RN": predictions[:, 1]
+    })
+
+
     plt.figure(1),plt.clf()
-    plt.subplot(1,2,1)
-    sb.stripplot(x='category',y='value',data=data,jitter=True,size=1)
-    plt.subplot(1,2,2)
-    sb.boxplot(x='category',y='value',data=data)
+    plt.subplot(1, 3, 1)
+    df_melted = pd.melt(df, 
+                        value_vars=["Label T", "Label RN"], 
+                        var_name="Category", 
+                        value_name="Label")
+
+    df_melted["Prediction"] = pd.melt(df, 
+                                    value_vars=["Pred T", "Pred RN"], 
+                                    value_name="Prediction")["Prediction"]
+
+    # Stripplot with Separate Categories
+    sb.stripplot(x="Label", y="Prediction", hue="Category", data=df_melted, jitter=True, dodge=True, s=1)
+    plt.xlabel("True Label")
+    plt.ylabel("Prediction")
+    plt.title("Predictions vs Labels (Per Sample)")
+    plt.legend(title="Category")
+
+    plt.subplot(1,3,2),plt.cla()
+    sb.boxplot(x='Label',y='Prediction', hue='Category', data=df_melted)
+
+    # Boxplot: Prediction distribution per category
+    df_melted2 = df.melt(value_vars=["Pred T", "Pred RN"], var_name="Category", value_name="Prediction")
+    plt.subplot(1,3, 3)
+    # sb.boxplot(x="Category", y="Prediction", data=df_melted2)
+    plt.title("Prediction Distributions")
+
+    plt.show()
+
+
+    plt.figure(3)
+    plt.boxplot()
+
+
+    # Reshape Data to Long Format for Seaborn
+
+
+    df_labels = df.melt(value_vars=["Label T", "Label RN"], 
+                        var_name="Category", 
+                        value_name="Label")
+
+    # Melt Predictions
+    df_preds = df.melt(value_vars=["Pred T", "Pred RN"], 
+                        var_name="Category", 
+                        value_name="Prediction")
+
+    # Ensure categories align correctly
+    df_preds["Category"] = df_preds["Category"].str.replace("Pred ", "Label ")
+
+    # Merge Labels and Predictions
+    df_melted = pd.merge(df_labels, df_preds, on="Category")
+
 
 
 

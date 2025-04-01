@@ -21,6 +21,7 @@ from datasets import DatasetDict, load_dataset, load_from_disk
 from omegaconf import OmegaConf,DictConfig
 from torch.utils.data import ConcatDataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from torchinfo import summary
 
 from transforms import Compose
 # from pc_sam.model.loss import compute_iou
@@ -29,6 +30,7 @@ from utils.torch_utils import replace_with_fused_layernorm, worker_init_fn
 
 from dataset.nnUNet2dDataset import nnUNet2dDataset
 from model.nnUNetClassifier import nnUNetClassifier
+from psam.loss import Criterion
 
 # convenience functions for config .yaml's
 def get_uname():
@@ -88,6 +90,18 @@ def build_datasets(cfg):
     else:
         return build_dataset(cfg)
 
+# simple hack to add dropout
+def append_dropout(model, rate=0.2):
+    for name, module in model.named_children():
+        if len(list(module.children())) > 0:
+            append_dropout(module)
+        # if isinstance(module, nn.ReLU):
+        if isinstance(module, nn.Linear):
+            # new = nn.Sequential(module, nn.Dropout2d(p=rate, inplace=False))
+            new = nn.Sequential(nn.Dropout2d(p=rate, inplace=False),module)
+            setattr(model, name, new)
+
+
 
 @hydra.main(config_path='configs',config_name='large',version_base=None)
 def main(cfg:DictConfig):
@@ -139,6 +153,11 @@ def main(cfg:DictConfig):
     # ---------------------------------------------------------------------------- #
     set_seed(seed)
     model: nnUNetClassifier = hydra.utils.instantiate(cfg.model)
+    if False:
+        # a keras-like summary, but requires an arg for lbl and (1,0,0) doesn't work
+        summary(model,(1,3,256,256),(1,0,0))
+    else:
+        print(model)
 
     # ---------------------------------------------------------------------------- #
     # Initialize with pre-trained weights if provided
@@ -187,7 +206,7 @@ def main(cfg:DictConfig):
                                   num_classes=cfg.model.resnet.num_classes,
                                   decimate=cfg.decimate,
                                   transform=train_transform)
-
+    
     train_dataloader = DataLoader(
         train_dataset,
         **cfg.train_dataloader,
@@ -195,8 +214,6 @@ def main(cfg:DictConfig):
         generator=torch.Generator().manual_seed(seed)
         # collate_fn = collate_fn 
     )
-
-
 
     if cfg.val_freq > 0:
         for transform in cfg.val_dataset.transforms.transforms:
@@ -229,14 +246,18 @@ def main(cfg:DictConfig):
     optimizer = torch.optim.AdamW(params, lr=cfg.lr, weight_decay=cfg.weight_decay)
     scheduler = hydra.utils.instantiate(cfg.scheduler, optimizer=optimizer)
     
-    # criterion = Criterion()
-    criterion = hydra.utils.instantiate(cfg.loss)
+    pos_weight = train_dataset.balancedata()
+    if False: # get a type error trying to update cfg with a tensor
+        cfg.loss.pos_weight = pos_weight
+        criterion = hydra.utils.instantiate(cfg.loss)
+    else: # just make it directly for now
+        criterion = Criterion(pos_weight=pos_weight)
 
     # ---------------------------------------------------------------------------- #
     # Initialize accelerator
     # ---------------------------------------------------------------------------- #
     project_config = ProjectConfiguration(
-        output_dir, automatic_checkpoint_naming=True, total_limit=1
+        output_dir, automatic_checkpoint_naming=True, total_limit=4
     )
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
     accelerator = Accelerator(

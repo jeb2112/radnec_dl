@@ -33,7 +33,7 @@ lr: 1e-4
 weight_decay: 0.01
 max_grad_value: 1.0
 gradient_accumulation_steps: 1
-save_freq: 25
+save_freq: 20
 
 scheduler:
   _target_: optim.lr_scheduler.WarmupMultiStepLR

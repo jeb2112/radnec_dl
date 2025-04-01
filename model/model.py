@@ -4,12 +4,100 @@ import skimage.io as io
 import skimage.transform as trans
 import numpy as np
 import torchvision
+from torchvision.models.resnet import ResNet,BasicBlock,conv1x1
+import torch.nn as nn
 import torch
 from safetensors.torch import load_file
 
 from nnunet.nnunetv2.utilities.label_handling.label_handling import determine_num_input_channels
 from nnunet.nnunetv2.utilities.plans_handling.plans_handler import PlansManager, ConfigurationManager
 from nnunet.nnunetv2.utilities.get_network_from_plans import get_network_from_plans
+
+
+class BasicDropoutBlock(BasicBlock):
+    expansion: int = 1
+
+    def __init__(self,
+                inplanes: int,
+                planes: int,
+                *args,dropout_p=0.20,**kwargs):
+        super().__init__(inplanes,planes,*args,**kwargs)
+        self.dropout_p = dropout_p
+        if planes >= 512:
+            self.dropout = nn.Dropout(p=self.dropout_p)
+        else:
+            self.dropout = nn.Identity()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        identity = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out += identity
+        out = self.dropout(out)
+        out = self.relu(out)
+
+        return out
+
+class ResNetDropout(ResNet):
+    def __init__(self,*args,dropout_p=0.2,**kwargs):
+        self.dropout_p = dropout_p
+        super().__init__(*args,**kwargs)
+        self.fc = nn.Sequential(
+            nn.Dropout(p=self.dropout_p),  
+            self.fc        
+        )
+
+    def _make_layer(
+        self,
+        block: BasicDropoutBlock,
+        planes: int,
+        blocks: int,
+        stride: int = 1,
+        dilate: bool = False,
+    ) -> nn.Sequential:
+        norm_layer = self._norm_layer
+        downsample = None
+        previous_dilation = self.dilation
+        if dilate:
+            self.dilation *= stride
+            stride = 1
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                conv1x1(self.inplanes, planes * block.expansion, stride),
+                norm_layer(planes * block.expansion),
+            )
+
+        layers = []
+        layers.append(
+            block(
+                self.inplanes, planes, stride, downsample, self.groups, self.base_width, previous_dilation, norm_layer, dropout_p=self.dropout_p
+            )
+        )
+        self.inplanes = planes * block.expansion
+        for _ in range(1, blocks):
+            layers.append(
+                block(
+                    self.inplanes,
+                    planes,
+                    groups=self.groups,
+                    base_width=self.base_width,
+                    dilation=self.dilation,
+                    norm_layer=norm_layer,
+                    dropout_p=self.dropout_p
+                )
+            )
+
+        return nn.Sequential(*layers)
+
 
 def rmse(y_true, y_predict):
     return K.sqrt(K.mean(K.square(y_true-y_predict),axis=-1))
@@ -103,8 +191,10 @@ def vgg4(pretrained_weights=None, input_size=(128,128,1), output_size=1, reg=Non
 def resnet(ckpt_dir,num_classes=1):
     
     if ckpt_dir is None:
-        # model = torchvision.models.resnet50(weights=None,num_classes=num_classes)
-        model = torchvision.models.resnet18(weights=None,num_classes=num_classes)
+        if False:
+            model = torchvision.models.resnet18(weights=None,num_classes=num_classes)
+        else:
+            model = ResNetDropout(BasicDropoutBlock,[2,2,2,2],num_classes=2)
         model.eval()
     else:
         state_dict = load_file(os.path.join(ckpt_dir,'model.safetensors'))
@@ -118,7 +208,11 @@ def resnet(ckpt_dir,num_classes=1):
                 prefix = key.split('layer')[0]  # Take everything before 'layer'
                 break
         filter_state_dict = {k.replace(prefix,''): v for k,v in state_dict.items()}
-        model = torchvision.models.resnet18(num_classes=num_classes)
+        if False:
+            model = torchvision.models.resnet18(num_classes=num_classes)
+        else:
+            model = ResNetDropout(BasicDropoutBlock,[2,2,2,2],num_classes=num_classes)
+        model.eval()
 
         model_keys = set(model.state_dict().keys())
         state_keys = set(filter_state_dict.keys())
