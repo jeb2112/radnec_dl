@@ -70,15 +70,15 @@ OmegaConf.register_new_resolver('computemustd',compute_mu_std)
 
 
 # dataset functions
-def build_dataset(cfg,decimate=0,num_classes=2,transform=None):
+def build_dataset(cfg,decimate=0,num_classes=2,onehot=False,transform=None):
     dataset = nnUNet2dDataset(cfg.dataset.imgdir,cfg.dataset.lbldir,
-                                    # transform=Compose(cfg.transforms),
                                     transform=transform,
                                     decimate=decimate,
                                     in_memory=cfg.dataset.keep_in_memory,
                                     rgb=True,
                                     split=cfg.dataset.split,
-                                    num_classes=num_classes)
+                                    num_classes=num_classes,
+                                    onehot=onehot)
     return dataset
 
 def build_datasets(cfg):
@@ -205,6 +205,7 @@ def main(cfg:DictConfig):
     train_dataset = build_dataset(train_dataset_cfg,
                                   num_classes=cfg.model.resnet.num_classes,
                                   decimate=cfg.decimate,
+                                  onehot=cfg.onehot,
                                   transform=train_transform)
     
     train_dataloader = DataLoader(
@@ -226,6 +227,7 @@ def main(cfg:DictConfig):
         val_dataset_cfg = hydra.utils.instantiate(cfg.val_dataset)
         val_dataset = build_dataset(val_dataset_cfg,
                                     decimate=cfg.decimate,
+                                    onehot=cfg.onehot,
                                     num_classes=cfg.model.resnet.num_classes,
                                     transform=val_transform)
         val_dataloader = DataLoader(
@@ -246,12 +248,15 @@ def main(cfg:DictConfig):
     optimizer = torch.optim.AdamW(params, lr=cfg.lr, weight_decay=cfg.weight_decay)
     scheduler = hydra.utils.instantiate(cfg.scheduler, optimizer=optimizer)
     
-    pos_weight = train_dataset.balancedata()
     if False: # get a type error trying to update cfg with a tensor
         cfg.loss.pos_weight = pos_weight
         criterion = hydra.utils.instantiate(cfg.loss)
     else: # just make it directly for now
-        criterion = Criterion(pos_weight=pos_weight)
+        if cfg.onehot:
+            criterion = Criterion(onehot=cfg.onehot)
+        else:
+            pos_weight = train_dataset.balancedata()
+            criterion = Criterion(pos_weight=pos_weight)
 
     # ---------------------------------------------------------------------------- #
     # Initialize accelerator

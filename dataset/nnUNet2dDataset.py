@@ -30,12 +30,14 @@ class nnUNet2dDataset(Dataset):
         in_memory = False,
         rgb = False,
         split=None, # awkward arrangement. this class is called separately for 'train' and 'val' for unsorted dirs of data.
-        seed=42 # seed is hard-coded here, to get division into 'train' and 'val' without overlap or omission
+        seed=42, # seed is hard-coded here, to get division into 'train' and 'val' without overlap or omission
+        onehot=False
     ):  
         self.dataset = {}
         self.labeldir = lbldir
         self.imagedir = imgdir
         self.num_classes = num_classes
+        self.onehot = onehot
         lblfiles = sorted(os.listdir(self.labeldir))
         self.n = len(lblfiles)
         self.lbls = []
@@ -43,6 +45,21 @@ class nnUNet2dDataset(Dataset):
             with open(os.path.join(self.labeldir,l)) as fp:
                 lbl_dx = json.load(fp)['dx']
                 self.lbls.append(lbl_dx)
+
+        # option to switch convert multi-hot labels to separate classes
+        # this code here is instead of re-coding nnunet_trainer_preprocess to output
+        # labels for exclusive multiple classes.
+        # note that currently num_classes is also still hard-coded in model configs
+        # so self.num_classes is not re-assigned here
+        if self.onehot: 
+            lbls_arr = np.array(self.lbls)
+            lbls_onehot = np.zeros(self.n)
+            lbldict = {0:[0,0],1:[1,0],2:[0,1],3:[1,1]}
+            for k in lbldict.keys():
+                lbls_onehot[np.all(lbls_arr == lbldict[k],axis=1)] = k
+            if False:
+                self.num_classes = len(np.unique(lbls_onehot))
+            self.lbls = lbls_onehot.astype(int).tolist()
 
         imgfiles = sorted(os.listdir(self.imagedir))
         imgfiles = [(imgfiles[a],imgfiles[a+1]) for a in range(0,2*self.n,2) ]
@@ -130,8 +147,11 @@ class nnUNet2dDataset(Dataset):
             # label_vector = torch.zeros(self.num_classes,dtype=torch.float32)
             # for cidx in self.lbls[idx]:
             #     label_vector[cidx] = 1.0
-            # lblvec = torch.tensor([int(1 in self.lbls[idx]), int(2 in self.)], dtype=torch.float32)            
-            inputs['lbl'] = torch.tensor(self.lbls[idx],dtype=torch.float)
+            # lblvec = torch.tensor([int(1 in self.lbls[idx]), int(2 in self.)], dtype=torch.float32)
+            if self.onehot:
+                inputs['lbl'] = torch.tensor(self.lbls[idx],dtype=torch.long)  
+            else:
+                inputs['lbl'] = torch.tensor(self.lbls[idx],dtype=torch.float)
             # inputs['lbl'] = label_vector
 
         else: # read from file. generally too slow.

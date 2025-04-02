@@ -194,7 +194,7 @@ def resnet(ckpt_dir,num_classes=1):
         if False:
             model = torchvision.models.resnet18(weights=None,num_classes=num_classes)
         else:
-            model = ResNetDropout(BasicDropoutBlock,[2,2,2,2],num_classes=2)
+            model = ResNetDropout(BasicDropoutBlock,[2,2,2,2],num_classes=num_classes)
         model.eval()
     else:
         state_dict = load_file(os.path.join(ckpt_dir,'model.safetensors'))

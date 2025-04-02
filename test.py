@@ -32,13 +32,14 @@ def get_uname():
         return '/home/jbishop/data/radnec2'
     assert False
 
-def build_dataset(cfg,decimate=0):
+def build_dataset(cfg,decimate=0,onehot=False):
     dataset = nnUNet2dDataset(cfg.dataset.imgdir,cfg.dataset.lbldir,
                                     transform=Compose(cfg.transforms),
                                     decimate=decimate,
                                     in_memory=cfg.dataset.keep_in_memory,
                                     rgb=True,
-                                    split=cfg.dataset.split)
+                                    split=cfg.dataset.split,
+                                    onehot=onehot)
     return dataset
 
 
@@ -84,7 +85,7 @@ def main(cfg:DictConfig):
 
     else:
 
-        test_dataset = build_dataset(test_dataset_cfg)
+        test_dataset = build_dataset(test_dataset_cfg,onehot=True)
         test_dataloader = DataLoader(
             test_dataset,
             **cfg.test_dataloader,
@@ -111,67 +112,66 @@ def main(cfg:DictConfig):
         with open(fpath,'wb') as fp:
             pickle.dump(res,fp)
 
-    labels = np.array([r[0] for r in res])
-    predictions = np.array([r[1] for r in res])
-    categories = ['T','RN']  # Category names
 
-    df = pd.DataFrame({
-        "Label T": labels[:, 0], "Label RN": labels[:, 1],  
-        "Pred T": predictions[:, 0], "Pred RN": predictions[:, 1]
-    })
+    # one-hot results plots
+    if True:
+        labels = np.array([r[0] for r in res])
+        predictions = np.array([r[1] for r in res])
 
+        df = pd.DataFrame(predictions,columns=["0", "1", "2", "3"])
+        df['Label'] = labels
+ 
+        df_melted = df.melt(id_vars=["Label"], var_name="Class", value_name="Probability")
 
-    plt.figure(1),plt.clf()
-    plt.subplot(1, 3, 1)
-    df_melted = pd.melt(df, 
-                        value_vars=["Label T", "Label RN"], 
-                        var_name="Category", 
-                        value_name="Label")
+        # Stripplot
+        plt.figure(3,figsize=(12,4))
+        plt.subplot(1,2,1)
+        sb.stripplot(x="Class", y="Probability", hue="Label", data=df_melted, jitter=True, dodge=True, s=1)
 
-    df_melted["Prediction"] = pd.melt(df, 
-                                    value_vars=["Pred T", "Pred RN"], 
-                                    value_name="Prediction")["Prediction"]
+        plt.xlabel("Predicted Class")
+        plt.ylabel("Probability")
+        plt.title("Prediction Probabilities per Class")
+        plt.legend(title="True Label")
 
-    # Stripplot with Separate Categories
-    sb.stripplot(x="Label", y="Prediction", hue="Category", data=df_melted, jitter=True, dodge=True, s=1)
-    plt.xlabel("True Label")
-    plt.ylabel("Prediction")
-    plt.title("Predictions vs Labels (Per Sample)")
-    plt.legend(title="Category")
+        plt.subplot(1,2,2)
+        sb.boxplot(x="Class",y='Probability',hue='Label', data=df_melted)
+        plt.show()
+ 
+    # mul-hot results plot
+    if False:
+        labels = np.array([r[0] for r in res])
+        predictions = np.array([r[1] for r in res])
+        categories = ['T','RN']  # Category names
 
-    plt.subplot(1,3,2),plt.cla()
-    sb.boxplot(x='Label',y='Prediction', hue='Category', data=df_melted)
-
-    # Boxplot: Prediction distribution per category
-    df_melted2 = df.melt(value_vars=["Pred T", "Pred RN"], var_name="Category", value_name="Prediction")
-    plt.subplot(1,3, 3)
-    # sb.boxplot(x="Category", y="Prediction", data=df_melted2)
-    plt.title("Prediction Distributions")
-
-    plt.show()
+        df = pd.DataFrame({
+            "Label T": labels[:, 0], "Label RN": labels[:, 1],  
+            "Pred T": predictions[:, 0], "Pred RN": predictions[:, 1]
+        })
 
 
-    plt.figure(3)
-    plt.boxplot()
+        plt.figure(1),plt.clf()
+        plt.subplot(1, 2, 1)
+        df_melted = pd.melt(df, 
+                            value_vars=["Label T", "Label RN"], 
+                            var_name="Category", 
+                            value_name="Label")
 
+        df_melted["Prediction"] = pd.melt(df, 
+                                        value_vars=["Pred T", "Pred RN"], 
+                                        value_name="Prediction")["Prediction"]
 
-    # Reshape Data to Long Format for Seaborn
+        # Stripplot with Separate Categories
+        sb.stripplot(x="Label", y="Prediction", hue="Category", data=df_melted, jitter=True, dodge=True, s=1)
+        plt.xlabel("True Label")
+        plt.ylabel("Prediction")
+        plt.title("Predictions vs Labels (Per Sample)")
+        plt.legend(title="Category")
 
+        plt.subplot(1,2,2),plt.cla()
+        sb.boxplot(x='Label',y='Prediction', hue='Category', data=df_melted)
 
-    df_labels = df.melt(value_vars=["Label T", "Label RN"], 
-                        var_name="Category", 
-                        value_name="Label")
-
-    # Melt Predictions
-    df_preds = df.melt(value_vars=["Pred T", "Pred RN"], 
-                        var_name="Category", 
-                        value_name="Prediction")
-
-    # Ensure categories align correctly
-    df_preds["Category"] = df_preds["Category"].str.replace("Pred ", "Label ")
-
-    # Merge Labels and Predictions
-    df_melted = pd.merge(df_labels, df_preds, on="Category")
+        plt.show()
+        a=1
 
 
 

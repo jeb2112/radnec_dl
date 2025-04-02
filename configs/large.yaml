@@ -14,6 +14,7 @@ hydra:
 num_samples: 10000
 decimate: 0
 image_size: [256,256]
+onehot: True
 
 # For 4GB GPU.
 train_dataloader:
