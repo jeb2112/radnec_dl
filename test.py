@@ -32,9 +32,9 @@ def get_uname():
         return '/home/jbishop/data/radnec2'
     assert False
 
-def build_dataset(cfg,decimate=0,onehot=False):
+def build_dataset(cfg,decimate=0,onehot=False,transform=None):
     dataset = nnUNet2dDataset(cfg.dataset.imgdir,cfg.dataset.lbldir,
-                                    transform=Compose(cfg.transforms),
+                                    transform=None,
                                     decimate=decimate,
                                     in_memory=cfg.dataset.keep_in_memory,
                                     rgb=True,
@@ -76,7 +76,6 @@ def main(cfg:DictConfig):
     # ---------------------------------------------------------------------------- #
     test_dataset_cfg = hydra.utils.instantiate(cfg.test_dataset)
 
-
     outputdir = os.sep+os.path.join(*cfg.test_dataset.model.resnet.ckpt_dir.split(os.sep)[:-2])
     fpath = os.path.join(outputdir,'results.pkl')
     if os.path.exists(fpath):
@@ -85,6 +84,7 @@ def main(cfg:DictConfig):
 
     else:
 
+        # test_transform = hydra.utils.instantiate(cfg.test_dataset.transforms)
         test_dataset = build_dataset(test_dataset_cfg,onehot=True)
         test_dataloader = DataLoader(
             test_dataset,
@@ -105,7 +105,9 @@ def main(cfg:DictConfig):
             arg = torch.argmax(probs,dim=1)
             # pred = np.max(probs)
             lbl = data['lbl'].numpy()[0]
-            res.append((data['lbl'].numpy()[0],probs[0].numpy()))
+            if False:
+                plt.imshow(data['img'][0][0])
+            res.append((data['lbl'].numpy()[0],probs[0].numpy(),data['fdata']))
             pbar.update(1)
         pbar.close()
 
@@ -115,12 +117,21 @@ def main(cfg:DictConfig):
 
     # one-hot results plots
     if True:
+
+        # 3d recon
+
+
         labels = np.array([r[0] for r in res])
         predictions = np.array([r[1] for r in res])
-
-        df = pd.DataFrame(predictions,columns=["0", "1", "2", "3"])
+        files = [r[2] for r in res]
+        files = [[f[0] for f in tups] for tups in files]
+        file1 = [f[0] for f in files]
+        df = pd.DataFrame(predictions,columns=["0", "1", "2"])
         df['Label'] = labels
- 
+        df['File'] = file1
+
+        # quick check of trated T cases
+        print(df[(df['Label']==0) & (~df['File'].str.contains('u'))])
         df_melted = df.melt(id_vars=["Label"], var_name="Class", value_name="Probability")
 
         # Stripplot

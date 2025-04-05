@@ -14,60 +14,34 @@ import json
 from sklearn.model_selection import train_test_split
 from datetime import datetime, timezone, timedelta
 from torch.utils.data import Dataset
-import torch.nn.functional as F
 import torch
 
-class nnUNet2dDataset(Dataset):  
+# class for training imagenet datasets
+# classes are sorted into separate dirs
+class ImagenetDataset(Dataset):  
     def __init__(  
         self,   
         imgdir,
-        lbldir,
         num_classes = 2,
         transform = None,
         perturbation = 0,
         padding = 3,  
         image_size = (256, 256),  
         decimate = 0,
-        in_memory = False,
-        rgb = False,
+        in_memory = True,
         split=None, # awkward arrangement. this class is called separately for 'train' and 'val' for unsorted dirs of data.
         seed=42, # seed is hard-coded here, to get division into 'train' and 'val' without overlap or omission
-        onehot=False
     ):  
         self.dataset = {}
-        self.labeldir = lbldir
-        self.imagedir = imgdir
-        self.num_classes = num_classes
-        self.onehot = onehot
-        lblfiles = sorted(os.listdir(self.labeldir))
-        self.n = len(lblfiles)
+        self.imgdir = imgdir
+        lbls = os.listdir(self.imagedir)
+        self.num_classes = len(lbls)
+        imgfiles = []
         self.lbls = []
-        for l in lblfiles:
-            with open(os.path.join(self.labeldir,l)) as fp:
-                lbl_dx = json.load(fp)['dx']
-                self.lbls.append(lbl_dx)
-
-        # option to switch convert multi-hot labels to separate classes
-        # this code here is instead of re-coding nnunet_trainer_preprocess to output
-        # labels for exclusive multiple classes.
-        # note that currently num_classes is also still hard-coded in model configs
-        # so self.num_classes is not re-assigned here
-        if self.onehot: 
-            lbls_arr = np.array(self.lbls)
-            lbls_onehot = np.zeros(self.n)
-            # edit this dict for required keys.
-            lbldict = {0:[1,0],1:[0,1],2:[1,1]}
-            for k in lbldict.keys():
-                lbls_onehot[np.all(lbls_arr == lbldict[k],axis=1)] = k
-            if False:
-                self.num_classes = len(np.unique(lbls_onehot))
-            self.lbls = lbls_onehot.astype(int).tolist()
-
-        imgfiles = sorted(os.listdir(self.imagedir))
-        if False: # 2 ch
-            imgfiles = [(imgfiles[a],imgfiles[a+1]) for a in range(0,2*self.n,2) ]
-        else: # 3ch
-            imgfiles = [(imgfiles[a],imgfiles[a+1],imgfiles[a+2]) for a in range(0,3*self.n,3) ]
+        for l in lbls:
+            imgs = sorted(os.listdir(os.path.join(self.imgdir,l)))
+            imgfiles.append = imgs
+            self.lbls.append([l]*len(imgs))
 
         if split in ['train','val']:
             imgfiles_train,imgfiles_val,lbls_train,lbls_val = train_test_split(imgfiles,
@@ -98,7 +72,6 @@ class nnUNet2dDataset(Dataset):
 
         # for common re-sizing
         self.image_size = image_size
-        self.rgb = rgb
         # for general image processing
         self.transform = transform
 
@@ -106,36 +79,16 @@ class nnUNet2dDataset(Dataset):
         self.perturbation = perturbation
         self.padding = padding
 
-        self.imgfiles = imgfiles
-
         # inload to memory. for now this is the default.
         if in_memory:
             self.imgs = []
-            self.cases = {}
             self.in_memory = True
-            for lbl_dx,(t1pfile,flairfile,t1file) in zip(self.lbls,self.imgfiles): # 3ch
-                t1p = Image.open(os.path.join(self.imagedir,t1pfile))
-                t1p = ImageOps.pad(t1p,self.image_size)
-                t1p = np.array(t1p.getdata()).reshape(self.image_size[0],self.image_size[1]).astype(np.float32)
-                t1p /= 255.0
-                flair = Image.open(os.path.join(self.imagedir,flairfile))
-                flair = ImageOps.pad(flair,self.image_size)
-                flair = np.array(flair.getdata()).reshape(self.image_size[0],self.image_size[1]).astype(np.float32)
-                flair /= 255.0
-                t1 = Image.open(os.path.join(self.imagedir,t1file))
+            for lbl_dx,imgfile in zip(self.lbls,imgfiles):
+                t1 = Image.open(os.path.join(self.imgdir,imgfile))
                 t1 = ImageOps.pad(t1,self.image_size)
                 t1 = np.array(t1.getdata()).reshape(self.image_size[0],self.image_size[1]).astype(np.float32)
-                t1 /= 255.0
 
-                img_stack = np.stack((t1p,flair,t1),axis=0)
-                if self.rgb and False: # old 2ch
-                    img_stack = np.concatenate((img_stack,np.expand_dims(np.mean(img_stack,axis=0),axis=0)))
-                self.imgs.append(img_stack)
-
-        else: # load from file dynamically. not updated lately
-            imgs = sorted(os.listdir(self.imagedir))
-            self.idx0 = int(re.search('[0-9]{6}',imgs[0]).group(0)) - 1
-            self.in_memory = False
+                self.imgs.append(t1)
 
         return
 
@@ -148,15 +101,15 @@ class nnUNet2dDataset(Dataset):
 
         if self.in_memory:
             inputs['img'] = torch.Tensor(self.imgs[idx])
-            if self.transform and True:
-                inputs['img'] = self.transform(inputs['img'])
-
+            # label_vector = torch.zeros(self.num_classes,dtype=torch.float32)
+            # for cidx in self.lbls[idx]:
+            #     label_vector[cidx] = 1.0
+            # lblvec = torch.tensor([int(1 in self.lbls[idx]), int(2 in self.)], dtype=torch.float32)
             if self.onehot:
                 inputs['lbl'] = torch.tensor(self.lbls[idx],dtype=torch.long)  
             else:
                 inputs['lbl'] = torch.tensor(self.lbls[idx],dtype=torch.float)
-
-            inputs['fdata'] = self.imgfiles[idx]
+            # inputs['lbl'] = label_vector
 
         else: # read from file. generally too slow.
 
@@ -193,7 +146,7 @@ class nnUNet2dDataset(Dataset):
 
         # debug plotting
         if False:
-            plt.imshow(inputs['img'][0].numpy())
+            pass
 
         return inputs
 

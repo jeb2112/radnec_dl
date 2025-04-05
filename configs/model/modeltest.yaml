@@ -7,6 +7,5 @@ encoder:
 # trained resnet
 resnet:
   _target_: model.model.resnet
-  ckpt_dir: "${base_dir}/outputs/2025-04-02/12-20-27/checkpoints/checkpoint_2"
-  # ckpt_dir: "${base_dir}/outputs/2025-04-01/08-24-56/checkpoints/checkpoint_0"
-  num_classes: 4
+  ckpt_dir: "${base_dir}/outputs/2025-04-04/17-51-56_onehot_aug200_3class/checkpoints/checkpoint_4"
+  num_classes: 3

@@ -65,7 +65,7 @@ else:
 segdir = os.path.join(datadir,'seg')
 nnunetdir = os.path.join(datadir,'nnUNet_raw','Dataset140_RadNecClassify')
 
-normalslice_flag = True # flag for outputting normal brain cross-sections
+normalslice_flag = False # flag for outputting normal brain cross-sections
 
 caselist = os.listdir(os.path.join(datadir,'seg'))
 cases = {}
@@ -155,8 +155,12 @@ for ck in cases.keys():
             Rlbls = {str(i):None for i in range(ntarget)}
             study = os.path.split(ddict['dir'])[1]
 
-            for ik in ['flair+','t1+']:
-                filename = glob.glob(os.path.join(ddict['dir'],ik+'_processed*'))[0]
+            for ik in ['flair+','t1+','t1']:
+                try:
+                    filename = glob.glob(os.path.join(ddict['dir'],ik+'_processed*'))[0]
+                except IndexError:
+                    if ik == 't1':
+                        filename = glob.glob(os.path.join(ddict['dir'],'t1+_processed*'))[0]
                 imgs[ik],affine = loadnifti(os.path.split(filename)[1],os.path.join(cdir,os.path.split(filename)[0]),type='uint8')
                 assert np.max(imgs[ik] == 255)
                 for k in r_obl.keys():
@@ -203,7 +207,7 @@ for ck in cases.keys():
                     if normalslice_flag: # use all brain volume slices. since brains are not extracted
                         # use estimate to exclude the air background
                         noise = np.max(imgs['t1+'][:,0,0])
-                        pset = np.where( (Rimgs[k]['t1+'] > 10*noise) & (Rimgs[k]['flair+'] > 10*noise) )
+                        pset = np.where( (Rimgs[k]['t1+'] > 20*noise) & (Rimgs[k]['flair+'] > 20*noise) )
                     else: # create only slices with a lesion cross-section.
                         pset = np.where(Rlbls[k])
                     npixels = len(pset[0])
@@ -223,69 +227,70 @@ for ck in cases.keys():
                             else:  # Check individual RN=2 T=1
                                 lbl = [int(lblT in lblset), int(lblRN in lblset)]                           
 
-                            for ik in ('flair+','t1+'):
+                            for ik in ('flair+','t1+','t1'):
                                 imgslice[ik] = np.moveaxis(Rimgs[k][ik],dim,0)[slice]
 
-                            if normalslice_flag:
-                                # cv2.imwrite(os.path.join(output_lbldir,fname),lblslice)
-                                lblfname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '.json'
-                                # output a tumor slice. check minimum number of pixels in each label compartment, and total.
-                                skipslice = False
-                                for l in lblset:
-                                    if len(np.where(lblslice==l)[0]) < 20:
-                                        skipslice = True
-                                if skipslice:
-                                    continue
-                                elif len(np.where(lblslice)[0]) > 49:
-                                    for ktag,ik in zip(('0003','0001'),('flair+','t1+')):
-                                        fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '_' + 'r' + k + '.png'
-                                        imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
-                                    with open(os.path.join(output_lbldir,lblfname),'w') as fp:
-                                        json.dump({'dx':lbl},fp)   
+                            # output a tumor slice. check minimum number of pixels in each label compartment, and total.
+                            lblfname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '.json'
+                            skipslice = False
+                            for l in lblset:
+                                if len(np.where(lblslice==l)[0]) < 20:
+                                    skipslice = True
+                            if skipslice:
+                                continue
+                            elif len(np.where(lblslice)[0]) > 49:
+                                for ktag,ik in zip(('0004','0003','0001'),('t1','flair+','t1+')):
+                                    fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '_' + 'r' + k + '.png'
+                                    imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
+                                with open(os.path.join(output_lbldir,lblfname),'w') as fp:
+                                    json.dump({'dx':lbl},fp)   
 
-                                    # create test output pngs
-                                    if True:
-                                        lbl_ros = np.where(lblslice)
-                                        lbl_rost = np.where(lblslice == lblT)
-                                        lbl_rosrn = np.where(lblslice == lblRN)
+                                # create test output pngs
+                                if True:
+                                    lbl_ros = np.where(lblslice)
+                                    lbl_rost = np.where(lblslice == lblT)
+                                    lbl_rosrn = np.where(lblslice == lblRN)
 
-                                        lbl_ovly = skimage.color.gray2rgba(np.copy(imgslice['flair+']))/255
-                                        lbl_ovly[lbl_rost] = colors.to_rgb(defcolors[0]) +(0.5,)
-                                        lbl_ovly[lbl_rosrn] = colors.to_rgb(defcolors[1]) +(0.5,)
-                                        lbl_ovly  = (lbl_ovly*255).astype('uint8')
-                                        fname = 'ovly_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + 'r' + k + '.png'
-                                        fname = 'ovly_' + str(img_idx).zfill(6) + '_' + c + '.png'
-                                        cv2.putText(lbl_ovly, str(lbl), (5,30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
-                                        cv2.imwrite(os.path.join(output_lbldir,fname),cv2.cvtColor(lbl_ovly,cv2.COLOR_BGRA2RGBA))
-                                        # plt.imshow(lbl_ovly)
-                                        # plt.xticks([]),plt.yticks([])
-                                        # plt.text(10,10,lbl,c='w')
-                                        # plt.savefig(os.path.join(output_lbldir,fname),bbox_inches='tight',pad_inches=0)
-                                        # imsave(os.path.join(output_lbldir,fname),lbl_ovly,check_contrast=False)
-                                        a=1
+                                    lbl_ovly = skimage.color.gray2rgba(np.copy(imgslice['flair+']))/255
+                                    lbl_ovly[lbl_rost] = colors.to_rgb(defcolors[0]) +(0.5,)
+                                    lbl_ovly[lbl_rosrn] = colors.to_rgb(defcolors[1]) +(0.5,)
+                                    lbl_ovly  = (lbl_ovly*255).astype('uint8')
+                                    fname = 'ovly_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + 'r' + k + '.png'
+                                    fname = 'ovly_' + str(img_idx).zfill(6) + '_' + c + '.png'
+                                    cv2.putText(lbl_ovly, str(lbl), (5,30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+                                    cv2.imwrite(os.path.join(output_lbldir,fname),cv2.cvtColor(lbl_ovly,cv2.COLOR_BGRA2RGBA))
+                                    # plt.imshow(lbl_ovly)
+                                    # plt.xticks([]),plt.yticks([])
+                                    # plt.text(10,10,lbl,c='w')
+                                    # plt.savefig(os.path.join(output_lbldir,fname),bbox_inches='tight',pad_inches=0)
+                                    # imsave(os.path.join(output_lbldir,fname),lbl_ovly,check_contrast=False)
+                                    a=1
 
-                                elif len(np.where(lblslice)[0]) > 0: # don't want to use these cross-sections at all.
-                                    continue
-                                # output a normal slice
-                                elif random.random() < 0.05:
-                                    # don't need all the normal slices just a few
-                                    for ktag,ik in zip(('0003','0001'),('flair+','t1+')):
-                                        fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '_' + 'r' + k + '.png'
-                                        imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
-                                    with open(os.path.join(output_lbldir,lblfname),'w') as fp:
-                                        json.dump({'dx':lbl},fp)                                    
-                                else:
-                                    continue
+                            elif len(np.where(lblslice)[0]) > 0: # don't want to use these cross-sections at all.
+                                continue
+                            # output a normal slice. not coded yet.
+                            # elif normalslice_flag:
+                            #     if random.random() < 0.05:
+                            #         # don't need all the normal slices just a few
+                            #         for ktag,ik in zip(('0003','0001'),('flair+','t1+')):
+                            #             fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '_' + 'r' + k + '.png'
+                            #             imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
+                            #         with open(os.path.join(output_lbldir,lblfname),'w') as fp:
+                            #             json.dump({'dx':lbl},fp) 
+                            #     else:
+                            #         continue
+                            else:
+                                continue
 
 
-                            else: # no normal slices. not updated.
-                                if len(np.where(lblslice)[0]) > 49:
-                                    fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '.png'
-                                    imsave(os.path.join(output_lbldir,fname),lblslice,check_contrast=False)
-                                    # cv2.imwrite(os.path.join(output_lbldir,fname),lblslice)
-                                    for ktag,ik in zip(('0003','0001'),(rtag+'flair+',rtag+'t1+')):
-                                        fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '.png'
-                                        imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
+                            # else: # no normal slices. not updated.
+                            #     if len(np.where(lblslice)[0]) > 49:
+                            #         fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '.png'
+                            #         imsave(os.path.join(output_lbldir,fname),lblslice,check_contrast=False)
+                            #         # cv2.imwrite(os.path.join(output_lbldir,fname),lblslice)
+                            #         for ktag,ik in zip(('0003','0001'),(rtag+'flair+',rtag+'t1+')):
+                            #             fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '.png'
+                            #             imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
 
                             img_idx += 1
 

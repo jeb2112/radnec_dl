@@ -10,9 +10,9 @@ dataset:
   rgb: True
   format: png
   shuffle: False
-transforms:
-  # - _target_: pc_sam.datasets.transforms.NormalizePoints
-  # - _target_: pc_sam.datasets.transforms.NormalizeColor
-  #   mean: 0.5
-  #   std: 0.5
-  - _target_: transforms.ToTensor
+# transforms:
+#   _target_: torchvision.transforms.Compose
+#   transforms:
+#     - _target_: torchvision.transforms.Lambda
+#       lambd: "lambda x: x"
+ 

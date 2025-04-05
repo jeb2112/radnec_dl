@@ -19,7 +19,7 @@ onehot: True
 # For 4GB GPU.
 train_dataloader:
   batch_size: 32
-  num_workers: 2
+  num_workers: 4
   shuffle: False
   drop_last: True
 

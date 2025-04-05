@@ -30,6 +30,7 @@ from utils.torch_utils import replace_with_fused_layernorm, worker_init_fn
 
 from dataset.nnUNet2dDataset import nnUNet2dDataset
 from model.nnUNetClassifier import nnUNetClassifier
+from model.model import load_statedict
 from psam.loss import Criterion
 
 # convenience functions for config .yaml's
@@ -44,7 +45,7 @@ def get_uname():
 def compute_mu_std(dataset):
     dataloader = DataLoader(
         dataset,
-        batch_size=2,
+        batch_size=1,
         shuffle=False
         # collate_fn = collate_fn 
     )
@@ -54,6 +55,8 @@ def compute_mu_std(dataset):
 
     for data in dataloader:
         images = data['img']
+        if torch.max(images) > 1.0:
+            raise ValueError('possible image scaling error')
         batch_samples = images.size(0)
         images = images.view(batch_samples, images.size(1), -1)  # Flatten
         mean += images.mean(dim=2).sum(dim=0)
@@ -158,31 +161,6 @@ def main(cfg:DictConfig):
         summary(model,(1,3,256,256),(1,0,0))
     else:
         print(model)
-
-    # ---------------------------------------------------------------------------- #
-    # Initialize with pre-trained weights if provided
-    # ---------------------------------------------------------------------------- #
-    if cfg.pretrained_ckpt_path:
-        print("Loading pretrained weight from", cfg.pretrained_ckpt_path)
-        pretrained = torch.load(cfg.pretrained_ckpt_path)
-        # Hardcoded for Uni3D
-        state_dict = {}
-        for name in pretrained["module"].keys():
-            if "point_encoder.encoder2trans" in name:
-                # print(name)
-                suffix = name[len("point_encoder.encoder2trans.") :]
-                state_dict[f"patch_proj.{suffix}"] = pretrained["module"][name]
-                # print(name, pretrained["module"][name].shape)
-            if "point_encoder.pos_embed" in name:
-                # print(name)
-                suffix = name[len("point_encoder.pos_embed.") :]
-                state_dict[f"pos_embed.{suffix}"] = pretrained["module"][name]
-            if "point_encoder.visual" in name:
-                # print(name)
-                suffix = name[len("point_encoder.visual.") :]
-                state_dict[f"transformer.{suffix}"] = pretrained["module"][name]
-        missing_keys = model.pc_encoder.load_state_dict(state_dict, strict=False)
-        print(missing_keys)
 
     # ---------------------------------------------------------------------------- #
     # Setup dataloaders
@@ -334,11 +312,7 @@ def main(cfg:DictConfig):
     for epoch in range(start_epoch, cfg.max_epochs):
         model.train()
 
-        if cfg.log_with == "wandb":
-            # Since wandb records stdout, decrease the frequency of tqdm updates
-            pbar = tqdm(total=len(train_dataloader), miniters=10, maxinterval=60)
-        else:
-            pbar = tqdm(total=len(train_dataloader))
+        pbar = tqdm(total=len(train_dataloader))
 
         if False:
             p = cProfile.Profile()

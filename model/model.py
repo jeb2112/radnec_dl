@@ -188,6 +188,39 @@ def vgg4(pretrained_weights=None, input_size=(128,128,1), output_size=1, reg=Non
         model.load_weights(pretrained_weights)
     return model
 
+def load_statedict(ckpt_dir,num_classes=2):
+    print('re-loading {} model.safetensors'.format(ckpt_dir))
+    state_dict = load_file(os.path.join(ckpt_dir,'model.safetensors'))
+    # accelerate save_state() prefixes the dict keys, filter them out here
+    # or just save weights only to .pth
+    # Iterate through the keys and find one that contains 'layer'. 'layer' would
+    # be common to just about any model so a reliable indicator that prefixes have been parsed. 
+    prefix = ''
+    for key in state_dict.keys():
+        if 'layer' in key:
+            prefix = key.split('layer')[0]  # Take everything before 'layer'
+            break
+    filter_state_dict = {k.replace(prefix,''): v for k,v in state_dict.items()}
+    if False:
+        model = torchvision.models.resnet18(num_classes=num_classes)
+    else:
+        model = ResNetDropout(BasicDropoutBlock,[2,2,2,2],num_classes=num_classes)
+    model.eval()
+
+    model_keys = set(model.state_dict().keys())
+    state_keys = set(filter_state_dict.keys())
+
+    # Find missing and extra keys
+    missing_keys = model_keys - state_keys
+    extra_keys = state_keys - model_keys
+    if len(missing_keys) or len(extra_keys):
+        print("Missing keys in loaded state dict:", missing_keys)
+        print("Extra keys in loaded state dict:", extra_keys)
+
+    model.load_state_dict(filter_state_dict)
+    model.eval()
+    return model
+
 def resnet(ckpt_dir,num_classes=1):
     
     if ckpt_dir is None:
@@ -197,36 +230,7 @@ def resnet(ckpt_dir,num_classes=1):
             model = ResNetDropout(BasicDropoutBlock,[2,2,2,2],num_classes=num_classes)
         model.eval()
     else:
-        state_dict = load_file(os.path.join(ckpt_dir,'model.safetensors'))
-        # accelerate save_state() prefixes the dict keys, filter them out here
-        # or just save weights only to .pth
-        # Iterate through the keys and find one that contains 'layer'. 'layer' would
-        # be common to just about any model so a reliable indicator that prefixes have been parsed. 
-        prefix = ''
-        for key in state_dict.keys():
-            if 'layer' in key:
-                prefix = key.split('layer')[0]  # Take everything before 'layer'
-                break
-        filter_state_dict = {k.replace(prefix,''): v for k,v in state_dict.items()}
-        if False:
-            model = torchvision.models.resnet18(num_classes=num_classes)
-        else:
-            model = ResNetDropout(BasicDropoutBlock,[2,2,2,2],num_classes=num_classes)
-        model.eval()
-
-        model_keys = set(model.state_dict().keys())
-        state_keys = set(filter_state_dict.keys())
-
-        # Find missing and extra keys
-        missing_keys = model_keys - state_keys
-        extra_keys = state_keys - model_keys
-        if len(missing_keys) or len(extra_keys):
-            print("Missing keys in loaded state dict:", missing_keys)
-            print("Extra keys in loaded state dict:", extra_keys)
-
-        model.load_state_dict(filter_state_dict)
-        model.eval()
-
+        model = load_statedict(ckpt_dir,num_classes=num_classes)
 
     return model
 
