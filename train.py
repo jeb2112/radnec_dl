@@ -179,7 +179,10 @@ def main(cfg:DictConfig):
 
     # now do the initialization with the runtime stats.
     train_dataset_cfg = hydra.utils.instantiate(cfg.train_dataset)
-    train_transform = hydra.utils.instantiate(cfg.train_dataset.transforms)
+    if True: # no augmentation
+        train_transform = None
+    else:
+        train_transform = hydra.utils.instantiate(cfg.train_dataset.transforms)
     train_dataset = build_dataset(train_dataset_cfg,
                                   num_classes=cfg.model.resnet.num_classes,
                                   decimate=cfg.decimate,
@@ -201,7 +204,10 @@ def main(cfg:DictConfig):
                 transform.std = std.tolist()
                 break  
 
-        val_transform = hydra.utils.instantiate(cfg.val_dataset.transforms)
+        if True: # no augmentation
+            val_transform = None
+        else:
+            val_transform = hydra.utils.instantiate(cfg.val_dataset.transforms)
         val_dataset_cfg = hydra.utils.instantiate(cfg.val_dataset)
         val_dataset = build_dataset(val_dataset_cfg,
                                     decimate=cfg.decimate,

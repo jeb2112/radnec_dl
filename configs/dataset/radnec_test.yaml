@@ -10,6 +10,7 @@ dataset:
   rgb: True
   format: png
   shuffle: False
+  tag: 'train'
 # transforms:
 #   _target_: torchvision.transforms.Compose
 #   transforms:

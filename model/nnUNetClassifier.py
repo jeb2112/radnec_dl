@@ -31,8 +31,6 @@ class ResNetModel(nn.Module):
         x = self.encoder(x)  # Pass through encoder
         return x
 
-
-
 class nnUNetClassifier(nn.Module):
     def __init__(
         self,

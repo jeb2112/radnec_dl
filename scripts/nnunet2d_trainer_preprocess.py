@@ -81,7 +81,7 @@ for c in caselist:
     os.chdir(cdir)
     # filename = glob.glob(os.path.join('**','mask_T_*.nii*'))
     dirdict = {'dir':None,'T':[],'TC':[]}
-    tally[c] = {'dx':0,'dirs':[]}
+    tally[c] = {'dx':0,'dirs':[]} # RN0, T1
     for root,dirs,files in os.walk(cdir,topdown=False):
         # print('{}\n{}\n{}'.format(root,dirs,files))
         tcfiles = sorted([f for f in files if re.search('mask_TC',f)])
@@ -109,7 +109,8 @@ random.seed(42) # random numbers for normal slices
 lblT = 127
 lblRN = 255
 
-for ck in cases.keys():
+# for ck in cases.keys():
+for ck in ['casesTs','casesTr']:
     print(ck)
 
     output_imgdir = os.path.join(nnunetdir,ck.replace('cases','images'))
@@ -186,6 +187,11 @@ for ck in cases.keys():
                 # non-continguous like 127,255. so, for spot checking the pings can temporarily run this code using 127,255
                 # but otherwise use 0,1,2 for nnunet. 
 
+                # check for pure T cases
+                diffpixels = np.where(masks['TC'].astype(int) - masks['T'].astype(int))[0]
+                if len(diffpixels) == 0:
+                    print('case {} T'.format(c))
+
                 # check for error pixels. according to convention, 'T' should be entirely 
                 # a subset of 'TC'
                 errpixels = np.where(masks['TC'].astype(int) - masks['T'].astype(int) < 0)[0]
@@ -224,7 +230,7 @@ for ck in cases.keys():
                                 lbl = [0, 0] # normal slice
                             elif lblset == {0, lblT, lblRN}:
                                 lbl = [1, 1] # both
-                            else:  # Check individual RN=2 T=1
+                            else:  # Check individual RN=2nd elem T=1st elem
                                 lbl = [int(lblT in lblset), int(lblRN in lblset)]                           
 
                             for ik in ('flair+','t1+','t1'):
@@ -243,10 +249,11 @@ for ck in cases.keys():
                                     fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '_' + 'r' + k + '.png'
                                     imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
                                 with open(os.path.join(output_lbldir,lblfname),'w') as fp:
+                                    tdx = tally[c]['dx']
                                     json.dump({'dx':lbl},fp)   
 
                                 # create test output pngs
-                                if True:
+                                if True and 'Ts' in ck:
                                     lbl_ros = np.where(lblslice)
                                     lbl_rost = np.where(lblslice == lblT)
                                     lbl_rosrn = np.where(lblslice == lblRN)

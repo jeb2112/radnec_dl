@@ -188,7 +188,7 @@ def vgg4(pretrained_weights=None, input_size=(128,128,1), output_size=1, reg=Non
         model.load_weights(pretrained_weights)
     return model
 
-def load_statedict(ckpt_dir,num_classes=2):
+def load_statedict(ckpt_dir,num_classes=2,dropout=False):
     print('re-loading {} model.safetensors'.format(ckpt_dir))
     state_dict = load_file(os.path.join(ckpt_dir,'model.safetensors'))
     # accelerate save_state() prefixes the dict keys, filter them out here
@@ -201,10 +201,10 @@ def load_statedict(ckpt_dir,num_classes=2):
             prefix = key.split('layer')[0]  # Take everything before 'layer'
             break
     filter_state_dict = {k.replace(prefix,''): v for k,v in state_dict.items()}
-    if False:
-        model = torchvision.models.resnet18(num_classes=num_classes)
-    else:
+    if dropout:
         model = ResNetDropout(BasicDropoutBlock,[2,2,2,2],num_classes=num_classes)
+    else:
+        model = torchvision.models.resnet18(num_classes=num_classes)
     model.eval()
 
     model_keys = set(model.state_dict().keys())
@@ -221,16 +221,16 @@ def load_statedict(ckpt_dir,num_classes=2):
     model.eval()
     return model
 
-def resnet(ckpt_dir,num_classes=1):
+def resnet(ckpt_dir,num_classes=2,dropout=False):
     
     if ckpt_dir is None:
-        if False:
-            model = torchvision.models.resnet18(weights=None,num_classes=num_classes)
-        else:
+        if dropout:
             model = ResNetDropout(BasicDropoutBlock,[2,2,2,2],num_classes=num_classes)
+        else:
+            model = torchvision.models.resnet18(weights=None,num_classes=num_classes)
         model.eval()
     else:
-        model = load_statedict(ckpt_dir,num_classes=num_classes)
+        model = load_statedict(ckpt_dir,num_classes=num_classes,dropout=dropout)
 
     return model
 

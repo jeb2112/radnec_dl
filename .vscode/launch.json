@@ -23,8 +23,7 @@
             "request": "launch",
             "program": "${workspaceRoot}/test.py",
             "args": [
-                // "--modeldir","/media/jbishop/Data/ua_align/cnn_2d/models/resnet-e500-64x128x24-le0.3",
-                // "--predict"
+                "+tag=test",
             ],
             "console": "integratedTerminal",
             "justMyCode": false

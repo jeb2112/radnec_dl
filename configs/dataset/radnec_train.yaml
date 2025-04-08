@@ -19,14 +19,3 @@ transforms:
       contrast: 0.2
       saturation: 0.2
       hue: 0.1
-    # - _target_: torchvision.transforms.Normalize
-    #   mean: [0.485, 0.456, 0.406]
-    #   std: [0.229, 0.224, 0.225]
-
-     # - _target_: pc_sam.datasets.transforms.Crop
-  #   centroid: ${}
-  # - _target_: pc_sam.datasets.transforms.RandomScale
-  #   low: 0.8
-  #   high: 1.0
-  # - _target_: pc_sam.datasets.transforms.RandomRotatePerbuate
-  # - _target_: pc_sam.datasets.transforms.RandomRotateAlongAxis

@@ -32,7 +32,8 @@ class nnUNet2dDataset(Dataset):
         rgb = False,
         split=None, # awkward arrangement. this class is called separately for 'train' and 'val' for unsorted dirs of data.
         seed=42, # seed is hard-coded here, to get division into 'train' and 'val' without overlap or omission
-        onehot=False
+        onehot=False,
+        tag=None
     ):  
         self.dataset = {}
         self.labeldir = lbldir
@@ -55,8 +56,8 @@ class nnUNet2dDataset(Dataset):
         if self.onehot: 
             lbls_arr = np.array(self.lbls)
             lbls_onehot = np.zeros(self.n)
-            # edit this dict for required keys.
-            lbldict = {0:[1,0],1:[0,1],2:[1,1]}
+            # edit this dict for required keys. multi-hot code is [T,RN]
+            lbldict = {1:[0,1],0:[1,1]}
             for k in lbldict.keys():
                 lbls_onehot[np.all(lbls_arr == lbldict[k],axis=1)] = k
             if False:
@@ -221,7 +222,7 @@ class nnUNet2dDataset(Dataset):
             os.system('gzip --force "{}"'.format(filename))
 
 
-    # calculate weights for data imbalance
+    # calculate weights for data imbalance for multi-hot encoding
     def balancedata(self):
         listlbls = np.array(self.lbls)
         lbldict = {'neither':[0,0],'T':[1,0],'RN':[0,1],'both':[1,1]}
