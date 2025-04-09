@@ -5,15 +5,7 @@ dataset:
   name: radnec_test
   imgdir: ${base_dir}/nnUNet_raw/Dataset140_RadNecClassify/imagesTs
   lbldir: ${base_dir}/nnUNet_raw/Dataset140_RadNecClassify/labelsTs
-  split: "test"
   keep_in_memory: True
   rgb: True
   format: png
   shuffle: False
-  tag: 'train'
-# transforms:
-#   _target_: torchvision.transforms.Compose
-#   transforms:
-#     - _target_: torchvision.transforms.Lambda
-#       lambd: "lambda x: x"
- 

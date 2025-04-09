@@ -79,7 +79,6 @@ def build_dataset(cfg,decimate=0,num_classes=2,onehot=False,transform=None):
                                     decimate=decimate,
                                     in_memory=cfg.dataset.keep_in_memory,
                                     rgb=True,
-                                    split=cfg.dataset.split,
                                     num_classes=num_classes,
                                     onehot=onehot)
     return dataset
@@ -92,18 +91,6 @@ def build_datasets(cfg):
         return ConcatDataset(datasets.values())
     else:
         return build_dataset(cfg)
-
-# simple hack to add dropout
-def append_dropout(model, rate=0.2):
-    for name, module in model.named_children():
-        if len(list(module.children())) > 0:
-            append_dropout(module)
-        # if isinstance(module, nn.ReLU):
-        if isinstance(module, nn.Linear):
-            # new = nn.Sequential(module, nn.Dropout2d(p=rate, inplace=False))
-            new = nn.Sequential(nn.Dropout2d(p=rate, inplace=False),module)
-            setattr(model, name, new)
-
 
 
 @hydra.main(config_path='configs',config_name='large',version_base=None)
@@ -156,6 +143,7 @@ def main(cfg:DictConfig):
     # ---------------------------------------------------------------------------- #
     set_seed(seed)
     model: nnUNetClassifier = hydra.utils.instantiate(cfg.model)
+    model.train()
     if False:
         # a keras-like summary, but requires an arg for lbl and (1,0,0) doesn't work
         summary(model,(1,3,256,256),(1,0,0))
@@ -165,17 +153,18 @@ def main(cfg:DictConfig):
     # ---------------------------------------------------------------------------- #
     # Setup dataloaders
     # ---------------------------------------------------------------------------- #
-    # augmentation. normalize according to data stats
-    pre_dataset_cfg = hydra.utils.instantiate(cfg.train_dataset)
-    pre_dataset = build_dataset(pre_dataset_cfg,
-                                  num_classes=cfg.model.resnet.num_classes,
-                                  decimate=cfg.decimate)
-    mu,std = compute_mu_std(pre_dataset)
-    for transform in cfg.train_dataset.transforms.transforms:
-        if "_target_" in transform and transform["_target_"] == "torchvision.transforms.Normalize":
-            transform.mean = mu.tolist()
-            transform.std = std.tolist()
-            break  
+    if False:
+        # augmentation. normalize according to data stats
+        pre_dataset_cfg = hydra.utils.instantiate(cfg.train_dataset)
+        pre_dataset = build_dataset(pre_dataset_cfg,
+                                    num_classes=cfg.model.resnet.num_classes,
+                                    decimate=cfg.decimate)
+        mu,std = compute_mu_std(pre_dataset)
+        for transform in cfg.train_dataset.transforms.transforms:
+            if "_target_" in transform and transform["_target_"] == "torchvision.transforms.Normalize":
+                transform.mean = mu.tolist()
+                transform.std = std.tolist()
+                break  
 
     # now do the initialization with the runtime stats.
     train_dataset_cfg = hydra.utils.instantiate(cfg.train_dataset)

@@ -38,7 +38,6 @@ def build_dataset(cfg,decimate=0,onehot=False,transform=None,num_classes=2):
                                     decimate=decimate,
                                     in_memory=cfg.dataset.keep_in_memory,
                                     rgb=True,
-                                    split=cfg.dataset.split,
                                     onehot=onehot,
                                     num_classes=num_classes)
     return dataset
@@ -70,6 +69,7 @@ def main(cfg:DictConfig):
     # ---------------------------------------------------------------------------- #
     # set_seed(seed)
     model: nnUNetClassifier = hydra.utils.instantiate(cfg.test_dataset.model)
+    model.eval()
 
     # ---------------------------------------------------------------------------- #
     # Setup dataloaders
@@ -84,7 +84,7 @@ def main(cfg:DictConfig):
             res = pickle.load(fp)
     else:
         # test_transform = hydra.utils.instantiate(cfg.test_dataset.transforms)
-        dataset = build_dataset(dataset_cfg,onehot=True)
+        dataset = build_dataset(dataset_cfg,onehot=cfg.onehot)
         dataloader = DataLoader(
             dataset,
             **cfg.test_dataloader,
@@ -100,7 +100,10 @@ def main(cfg:DictConfig):
         res = []
         for i,data in enumerate(dataloader):
             logits = model(**data)
-            probs = F.softmax(logits.data, dim=1)
+            if cfg.onehot:
+                probs = F.softmax(logits.data, dim=1)
+            else:
+                probs = F.sigmoid(logits.data)
             arg = torch.argmax(probs,dim=1)
             # pred = np.max(probs)
             lbl = data['lbl'].numpy()[0]
@@ -115,7 +118,7 @@ def main(cfg:DictConfig):
 
 
     # one-hot results plots
-    if True:
+    if cfg.onehot:
         labels = np.array([r[0] for r in res])
         predictions = np.array([r[1] for r in res])
         files = [r[2] for r in res]
@@ -145,37 +148,40 @@ def main(cfg:DictConfig):
         plt.show()
  
     # mul-hot results plot
-    if False:
+    else:
         labels = np.array([r[0] for r in res])
         predictions = np.array([r[1] for r in res])
         categories = ['T','RN']  # Category names
+        dx_str = ['T/RN' if np.array_equal(row, [1,1]) else 'RN' for row in labels]
 
         df = pd.DataFrame({
-            "Label T": labels[:, 0], "Label RN": labels[:, 1],  
+            'dx':dx_str,"T": labels[:, 0], "RN": labels[:, 1],  
             "Pred T": predictions[:, 0], "Pred RN": predictions[:, 1]
         })
 
 
-        plt.figure(1),plt.clf()
-        plt.subplot(1, 2, 1)
         df_melted = pd.melt(df, 
-                            value_vars=["Label T", "Label RN"], 
-                            var_name="Category", 
+                            id_vars = ['dx'],
+                            value_vars=["T", "RN"], 
+                            var_name="category", 
                             value_name="Label")
 
-        df_melted["Prediction"] = pd.melt(df, 
+        df_melted["Prediction"] = pd.melt(df,
+                                          id_vars = ['dx'], 
                                         value_vars=["Pred T", "Pred RN"], 
                                         value_name="Prediction")["Prediction"]
 
+        plt.figure(1),plt.clf()
+        plt.subplot(1, 2, 1)
         # Stripplot with Separate Categories
-        sb.stripplot(x="Label", y="Prediction", hue="Category", data=df_melted, jitter=True, dodge=True, s=1)
-        plt.xlabel("True Label")
-        plt.ylabel("Prediction")
+        sb.stripplot(x="dx", y="Prediction", hue="category", data=df_melted, jitter=True, dodge=True, s=1)
+        plt.xlabel("dx")
+        # plt.ylabel("Prediction")
         plt.title("Predictions vs Labels (Per Sample)")
-        plt.legend(title="Category")
+        plt.legend(title="category")
 
         plt.subplot(1,2,2),plt.cla()
-        sb.boxplot(x='Label',y='Prediction', hue='Category', data=df_melted)
+        sb.boxplot(x='dx',y='Prediction', hue='category', data=df_melted)
 
         plt.show()
         a=1

@@ -52,6 +52,7 @@ def load_dataset(cpath,type='t1c'):
 # main
 
 defcolors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+onehot=True
 
 if os.name == 'posix':
     uname = platform.uname()
@@ -69,6 +70,7 @@ normalslice_flag = False # flag for outputting normal brain cross-sections
 
 caselist = os.listdir(os.path.join(datadir,'seg'))
 cases = {}
+y = {}
 
 # pre-read the segmentation dir to tally 
 # T vs RN. this is needed to stratify the train/test split
@@ -81,7 +83,7 @@ for c in caselist:
     os.chdir(cdir)
     # filename = glob.glob(os.path.join('**','mask_T_*.nii*'))
     dirdict = {'dir':None,'T':[],'TC':[]}
-    tally[c] = {'dx':0,'dirs':[]} # RN0, T1
+    tally[c] = {'dx':'RN','dirs':[]} # RN 0, T/RN 1
     for root,dirs,files in os.walk(cdir,topdown=False):
         # print('{}\n{}\n{}'.format(root,dirs,files))
         tcfiles = sorted([f for f in files if re.search('mask_TC',f)])
@@ -92,7 +94,7 @@ for c in caselist:
             tfiles = sorted([f for f in files if re.search('mask_T[^C\']',f)])
             if len(tfiles): # ie a single T mask amongst all studies
                 tally[c]['dirs'][-1]['T'] = tfiles
-                tally[c]['dx']=1
+                tally[c]['dx']='T'
             else:
                 tally[c]['dirs'][-1]['T'] = [None]*len(tcfiles)
 
@@ -101,16 +103,19 @@ casesdx = []
 for k,v in tally.items():
     finaldx.append(tally[k]['dx'])
     casesdx.append(k)
-cases['casesTr'],cases['casesTs'],y_train,y_test = train_test_split(casesdx,finaldx,stratify=finaldx,test_size=0.2,random_state=42)
+casesTr,cases['casesTs'],y_train,y['casesTs'] = train_test_split(casesdx,finaldx,stratify=finaldx,test_size=0.2,random_state=42)
+cases['casesTr'],cases['casesTv'],y['casesTr'],y['casesTv'] = train_test_split(casesTr,y_train,stratify=y_train,test_size=0.2,random_state=43)
 
 img_idx = 1
 random.seed(42) # random numbers for normal slices
 # assign numeric values for labels
 lblT = 127
 lblRN = 255
+if onehot:
+    lblRN_1h = 127
+    lblTRN_1h = 255
 
-# for ck in cases.keys():
-for ck in ['casesTs','casesTr']:
+for ck in cases.keys():
     print(ck)
 
     output_imgdir = os.path.join(nnunetdir,ck.replace('cases','images'))
@@ -118,10 +123,12 @@ for ck in ['casesTs','casesTr']:
     try:
         shutil.rmtree(output_imgdir)
         shutil.rmtree(output_lbldir)
+        shutil.rmtree(output_lbldir+'_png')
     except FileNotFoundError:
         pass
     os.makedirs(output_imgdir,exist_ok=True)
     os.makedirs(output_lbldir,exist_ok=True)
+    os.makedirs(output_lbldir+'_png',exist_ok=True)
 
     # arbitrary rotation for oblique slicing
     refvec = np.array([1,0,0],dtype=float)
@@ -139,8 +146,8 @@ for ck in ['casesTs','casesTr']:
         else:
             r_obl[str(i)] = np.eye(3)
 
-    for c in cases[ck]:
-        print('case = {}'.format(c))
+    for c,dx in zip(cases[ck],y[ck]):
+        print('case = {}, {}'.format(c,dx))
 
         if False: #debugging
             if c != 'M0012':
@@ -163,7 +170,7 @@ for ck in ['casesTs','casesTr']:
                     if ik == 't1':
                         filename = glob.glob(os.path.join(ddict['dir'],'t1+_processed*'))[0]
                 imgs[ik],affine = loadnifti(os.path.split(filename)[1],os.path.join(cdir,os.path.split(filename)[0]),type='uint8')
-                assert np.max(imgs[ik] == 255)
+                assert np.max(imgs[ik] == 1.0)
                 for k in r_obl.keys():
                     center = np.array(np.shape(imgs[ik]))/2
                     offset = center - np.matmul(r_obl[k],center)
@@ -208,7 +215,6 @@ for ck in ['casesTs','casesTr']:
                     Rlbls[k] = affine_transform(masks['lbl'],r_obl[k],offset=offset,order=0)
 
                 # oblique,orthogonal slices
-                # for rtag in ['R','']:
                 for k in r_obl.keys():
                     if normalslice_flag: # use all brain volume slices. since brains are not extracted
                         # use estimate to exclude the air background
@@ -224,14 +230,26 @@ for ck in ['casesTs','casesTr']:
                             lblslice = np.moveaxis(Rlbls[k],dim,0)[slice]
                             if np.max(lblslice) > lblRN:
                                 raise ValueError
-                            # nnunet convention is RN=2,T=1,normal=0                            
+                            # nnunet convention is RN=2,T=1,normal=0  
+                            # for 2 classes, using RN=0, both=1                          
                             lblset = set(np.unique(lblslice)) 
-                            if lblset == {0}:
-                                lbl = [0, 0] # normal slice
-                            elif lblset == {0, lblT, lblRN}:
-                                lbl = [1, 1] # both
-                            else:  # Check individual RN=2nd elem T=1st elem
-                                lbl = [int(lblT in lblset), int(lblRN in lblset)]                           
+                            if onehot:
+                                if lblset == {0}:
+                                    continue
+                                    lbl = [0] # normal slice
+                                elif lblset == {0, lblT, lblRN}:
+                                    lbl = [1] # both t/rn
+                                elif lblset == {0, lblRN}:  
+                                    lbl = [0] # rn
+                                elif lblset == {0, lblT}:
+                                    continue # not using tumor only for now
+                            else:
+                                if lblset == {0}:
+                                    lbl = [0, 0] # normal slice
+                                elif lblset == {0, lblT, lblRN}:
+                                    lbl = [1, 1] # both
+                                else:  # Check individual RN=2nd elem T=1st elem
+                                    lbl = [int(lblT in lblset), int(lblRN in lblset)]                           
 
                             for ik in ('flair+','t1+','t1'):
                                 imgslice[ik] = np.moveaxis(Rimgs[k][ik],dim,0)[slice]
@@ -253,19 +271,21 @@ for ck in ['casesTs','casesTr']:
                                     json.dump({'dx':lbl},fp)   
 
                                 # create test output pngs
-                                if True and 'Ts' in ck:
+                                if True:
                                     lbl_ros = np.where(lblslice)
                                     lbl_rost = np.where(lblslice == lblT)
                                     lbl_rosrn = np.where(lblslice == lblRN)
 
-                                    lbl_ovly = skimage.color.gray2rgba(np.copy(imgslice['flair+']))/255
+                                    lbl_img = skimage.color.gray2rgba(np.copy(imgslice['t1+']))/255
+                                    lbl_ovly = np.copy(lbl_img)
                                     lbl_ovly[lbl_rost] = colors.to_rgb(defcolors[0]) +(0.5,)
                                     lbl_ovly[lbl_rosrn] = colors.to_rgb(defcolors[1]) +(0.5,)
+
+                                    lbl_ovly = np.concat((lbl_ovly,lbl_img),axis=1)
                                     lbl_ovly  = (lbl_ovly*255).astype('uint8')
                                     fname = 'ovly_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + 'r' + k + '.png'
-                                    fname = 'ovly_' + str(img_idx).zfill(6) + '_' + c + '.png'
                                     cv2.putText(lbl_ovly, str(lbl), (5,30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
-                                    cv2.imwrite(os.path.join(output_lbldir,fname),cv2.cvtColor(lbl_ovly,cv2.COLOR_BGRA2RGBA))
+                                    cv2.imwrite(os.path.join(output_lbldir+'_png',fname),cv2.cvtColor(lbl_ovly,cv2.COLOR_BGRA2RGBA))
                                     # plt.imshow(lbl_ovly)
                                     # plt.xticks([]),plt.yticks([])
                                     # plt.text(10,10,lbl,c='w')

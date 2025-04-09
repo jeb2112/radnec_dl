@@ -7,6 +7,6 @@ encoder:
 # resnet
 resnet:
   _target_: model.model.resnet
-  ckpt_dir: "${base_dir}/outputs/2025-04-05/onehot_2class_RN1/checkpoints/checkpoint_1"
+  ckpt_dir: "${base_dir}/outputs/2025-04-08/15-30-23/checkpoints/checkpoint_2"
   num_classes: 2
   dropout: False

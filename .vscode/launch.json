@@ -23,7 +23,7 @@
             "request": "launch",
             "program": "${workspaceRoot}/test.py",
             "args": [
-                "+tag=test",
+                // "+tag=test_multhot",
             ],
             "console": "integratedTerminal",
             "justMyCode": false

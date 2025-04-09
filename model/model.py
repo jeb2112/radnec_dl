@@ -221,14 +221,13 @@ def load_statedict(ckpt_dir,num_classes=2,dropout=False):
     model.eval()
     return model
 
-def resnet(ckpt_dir,num_classes=2,dropout=False):
+def resnet(ckpt_dir,num_classes=2,dropout=False,onehot=True):
     
     if ckpt_dir is None:
         if dropout:
-            model = ResNetDropout(BasicDropoutBlock,[2,2,2,2],num_classes=num_classes)
+            model = ResNetDropout(BasicDropoutBlock,[2,2,2,2],num_classes=num_classes,onehot=onehot)
         else:
             model = torchvision.models.resnet18(weights=None,num_classes=num_classes)
-        model.eval()
     else:
         model = load_statedict(ckpt_dir,num_classes=num_classes,dropout=dropout)
 

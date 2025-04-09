@@ -30,8 +30,6 @@ class nnUNet2dDataset(Dataset):
         decimate = 0,
         in_memory = False,
         rgb = False,
-        split=None, # awkward arrangement. this class is called separately for 'train' and 'val' for unsorted dirs of data.
-        seed=42, # seed is hard-coded here, to get division into 'train' and 'val' without overlap or omission
         onehot=False,
         tag=None
     ):  
@@ -48,41 +46,11 @@ class nnUNet2dDataset(Dataset):
                 lbl_dx = json.load(fp)['dx']
                 self.lbls.append(lbl_dx)
 
-        # option to switch convert multi-hot labels to separate classes
-        # this code here is instead of re-coding nnunet_trainer_preprocess to output
-        # labels for exclusive multiple classes.
-        # note that currently num_classes is also still hard-coded in model configs
-        # so self.num_classes is not re-assigned here
-        if self.onehot: 
-            lbls_arr = np.array(self.lbls)
-            lbls_onehot = np.zeros(self.n)
-            # edit this dict for required keys. multi-hot code is [T,RN]
-            lbldict = {1:[0,1],0:[1,1]}
-            for k in lbldict.keys():
-                lbls_onehot[np.all(lbls_arr == lbldict[k],axis=1)] = k
-            if False:
-                self.num_classes = len(np.unique(lbls_onehot))
-            self.lbls = lbls_onehot.astype(int).tolist()
-
         imgfiles = sorted(os.listdir(self.imagedir))
         if False: # 2 ch
             imgfiles = [(imgfiles[a],imgfiles[a+1]) for a in range(0,2*self.n,2) ]
         else: # 3ch
             imgfiles = [(imgfiles[a],imgfiles[a+1],imgfiles[a+2]) for a in range(0,3*self.n,3) ]
-
-        if split in ['train','val']:
-            imgfiles_train,imgfiles_val,lbls_train,lbls_val = train_test_split(imgfiles,
-                                                                        self.lbls,
-                                                                        test_size=0.2,
-                                                                        random_state=seed,
-                                                                        stratify=self.lbls)
-            
-            if split == 'train':
-                imgfiles = imgfiles_train
-                self.lbls = lbls_train
-            elif split == 'val':
-                imgfiles = imgfiles_val
-                self.lbls = lbls_val
 
         self.n = len(self.lbls)
 
@@ -153,7 +121,7 @@ class nnUNet2dDataset(Dataset):
                 inputs['img'] = self.transform(inputs['img'])
 
             if self.onehot:
-                inputs['lbl'] = torch.tensor(self.lbls[idx],dtype=torch.long)  
+                inputs['lbl'] = torch.tensor(self.lbls[idx][0],dtype=torch.long)  
             else:
                 inputs['lbl'] = torch.tensor(self.lbls[idx],dtype=torch.float)
 
@@ -223,16 +191,19 @@ class nnUNet2dDataset(Dataset):
 
 
     # calculate weights for data imbalance for multi-hot encoding
+    # hard-coded for dataset
     def balancedata(self):
         listlbls = np.array(self.lbls)
-        lbldict = {'neither':[0,0],'T':[1,0],'RN':[0,1],'both':[1,1]}
+        # hard-coded here, has to match the actual dataset
+        lbldict = {'RN':[0,1],'both':[1,1]}
         counts = {}
         for k in lbldict.keys():
             counts[k] = np.sum(np.all(listlbls == lbldict[k],axis=1))
         total_samples = sum(counts.values())  # 4428 + 1013 + 7846 + 3157
 
         # Compute total positive counts for each class (includes 'both')
-        num_pos_T = counts['T'] + counts['both']
+        # hard-coded here. currently there are no tumor only cases.
+        num_pos_T = counts['both']
         num_pos_RN = counts['RN'] + counts['both']
 
         # Compute total negative counts per class
@@ -243,9 +214,13 @@ class nnUNet2dDataset(Dataset):
         pos_weight_T = num_neg_T / num_pos_T
         pos_weight_RN = num_neg_RN / num_pos_RN
 
-        # Convert to PyTorch tensor for BCEWithLogitsLoss
-        pos_weight = torch.tensor([pos_weight_T, pos_weight_RN], dtype=torch.float32)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        pos_weight = pos_weight.to(device)
+        pos_weight = [pos_weight_T,pos_weight_RN]
+        if 0 in pos_weight:
+            pos_weight = None
+        else:
+            # Convert to PyTorch tensor for BCEWithLogitsLoss
+            pos_weight = torch.tensor(pos_weight, dtype=torch.float32)
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            pos_weight = pos_weight.to(device)
 
         return pos_weight

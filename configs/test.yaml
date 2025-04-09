@@ -7,6 +7,11 @@ hydra:
   run:
     dir: ${base_dir}/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
     
+
+# Global variables
+onehot: True
+tag: 'testontrain_multhot'
+
 test_dataloader:
   batch_size: 1
   num_workers: 1
