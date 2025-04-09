@@ -168,10 +168,10 @@ def main(cfg:DictConfig):
 
     # now do the initialization with the runtime stats.
     train_dataset_cfg = hydra.utils.instantiate(cfg.train_dataset)
-    if True: # no augmentation
-        train_transform = None
-    else:
+    if cfg.augment: # no augmentation
         train_transform = hydra.utils.instantiate(cfg.train_dataset.transforms)
+    else:
+        train_transform = None
     train_dataset = build_dataset(train_dataset_cfg,
                                   num_classes=cfg.model.resnet.num_classes,
                                   decimate=cfg.decimate,
@@ -181,22 +181,23 @@ def main(cfg:DictConfig):
     train_dataloader = DataLoader(
         train_dataset,
         **cfg.train_dataloader,
-        worker_init_fn=worker_init_fn,
-        generator=torch.Generator().manual_seed(seed)
+        # worker_init_fn=worker_init_fn,
+        # generator=torch.Generator().manual_seed(seed)
         # collate_fn = collate_fn 
     )
 
     if cfg.val_freq > 0:
-        for transform in cfg.val_dataset.transforms.transforms:
-            if "_target_" in transform and transform["_target_"] == "torchvision.transforms.Normalize":
-                transform.mean = mu.tolist()
-                transform.std = std.tolist()
-                break  
+        if False:
+            for transform in cfg.val_dataset.transforms.transforms:
+                if "_target_" in transform and transform["_target_"] == "torchvision.transforms.Normalize":
+                    transform.mean = mu.tolist()
+                    transform.std = std.tolist()
+                    break  
 
-        if True: # no augmentation
-            val_transform = None
-        else:
+        if cfg.augment:
             val_transform = hydra.utils.instantiate(cfg.val_dataset.transforms)
+        else:
+            val_transform = None
         val_dataset_cfg = hydra.utils.instantiate(cfg.val_dataset)
         val_dataset = build_dataset(val_dataset_cfg,
                                     decimate=cfg.decimate,
@@ -204,7 +205,8 @@ def main(cfg:DictConfig):
                                     num_classes=cfg.model.resnet.num_classes,
                                     transform=val_transform)
         val_dataloader = DataLoader(
-            val_dataset, **cfg.val_dataloader, worker_init_fn=worker_init_fn
+            val_dataset, **cfg.val_dataloader,
+            # worker_init_fn=worker_init_fn
         )
 
     # ---------------------------------------------------------------------------- #
@@ -226,7 +228,7 @@ def main(cfg:DictConfig):
         criterion = hydra.utils.instantiate(cfg.loss)
     else: # just make it directly for now
         if cfg.onehot:
-            criterion = Criterion(onehot=cfg.onehot)
+            criterion = Criterion(onehot=cfg.onehot,weights=train_dataset.weights)
         else:
             pos_weight = train_dataset.balancedata()
             criterion = Criterion(pos_weight=pos_weight)
@@ -243,11 +245,12 @@ def main(cfg:DictConfig):
         kwargs_handlers=[ddp_kwargs],
         log_with=cfg.log_with,
     )
-    model, optimizer, train_dataloader, scheduler = accelerator.prepare(
-        model, optimizer, train_dataloader, scheduler
-    )
-    if cfg.val_freq > 0:
-        val_dataloader = accelerator.prepare(val_dataloader)
+    if True:
+        model, optimizer, train_dataloader, scheduler = accelerator.prepare(
+            model, optimizer, train_dataloader, scheduler
+        )
+        if cfg.val_freq > 0:
+            val_dataloader = accelerator.prepare(val_dataloader)
 
     if cfg.log_with:
         accelerator.init_trackers(
@@ -281,8 +284,6 @@ def main(cfg:DictConfig):
         pbar.close()
         avg_vloss = np.mean(np.array([vloss[l].item() for l in vloss.keys()]))
 
-        # Update metrics
-        # for i_iter in [0, len(outputs) - 1]:
         metrics = dict(loss=avg_vloss)
 
         return metrics
@@ -305,7 +306,6 @@ def main(cfg:DictConfig):
         accelerator.project_configuration.iteration = start_epoch
 
     for epoch in range(start_epoch, cfg.max_epochs):
-        model.train()
 
         pbar = tqdm(total=len(train_dataloader))
 
@@ -313,6 +313,7 @@ def main(cfg:DictConfig):
             p = cProfile.Profile()
             p.enable()
 
+        model.train()
         for data in train_dataloader:
 
             flag = (step + 1) % cfg.gradient_accumulation_steps == 0
@@ -323,7 +324,9 @@ def main(cfg:DictConfig):
                 # NOTE: `forward` method needs to be implemented for `accelerate` to apply autocast
                 outputs = model(**data)
                 loss = criterion(outputs, data['lbl'])
-                # accelerator.backward(loss.item() / cfg.gradient_accumulation_steps)
+                # with crossEntropyLoss averaging to mean is already performed
+                if cfg.gradient_accumulation_steps > 1:
+                    loss = loss / cfg.gradient_accumulation_steps
                 accelerator.backward(loss)
 
             if flag:
@@ -336,53 +339,8 @@ def main(cfg:DictConfig):
                 scheduler.step()
 
                 # Compute metrics
-                if False:
-                    with torch.no_grad():
-                        metrics = dict(loss=loss.item())
-                        for i_iter in [0, len(outputs) - 1]:
-                            # pred_masks = outputs[i_iter]["prompt_masks"] > 0
-                            pred_masks = aux[i_iter]["best_masks"] > 0
-                            is_correct = pred_masks == gt_masks
-                            acc = is_correct.float().mean()
-                            fg_acc = is_correct[gt_masks == 1].float().mean()
-                            bg_acc = is_correct[gt_masks == 0].float().mean()
-                            metrics[f"acc({i_iter})"] = acc.item()
-                            metrics[f"fg_acc({i_iter})"] = fg_acc.item()
-                            metrics[f"bg_acc({i_iter})"] = bg_acc.item()
 
-                            iou = aux[i_iter]["iou"].mean()
-                            metrics[f"iou({i_iter})"] = iou.item()
-
-                            # Loss breakdown
-                            for k, v in aux[i_iter].items():
-                                if k.startswith("loss"):
-                                    metrics[f"{k}({i_iter})"] = v.item()
-
-                    # Logging with tqdm
-                    sub_metrics = {
-                        k: v
-                        for k, v in metrics.items()
-                        if k.startswith("acc") or k.startswith("iou")
-                    }
-                    pbar.set_postfix(sub_metrics)
-
-                    # Visualize with wandb
-                    if (
-                        cfg.log_with == "wandb"
-                        and (global_step + 1) % (cfg.get("vis_freq", 1000)) == 0
-                    ):
-                        pcds = get_wandb_object_3d(
-                            data["coords"],
-                            data["features"],
-                            gt_masks,
-                            [aux[0]["best_masks"] > 0, aux[-1]["best_masks"] > 0],
-                            [outputs[0]["prompt_coords"], outputs[-1]["prompt_coords"]],
-                            [outputs[0]["prompt_labels"], outputs[-1]["prompt_labels"]],
-                        )
-                        metrics["pcd"] = pcds
-
-                else:
-                    metrics = dict(loss=loss.item())
+                metrics = dict(loss=loss.item())
 
                 if cfg.log_with and False:
                     accelerator.log(metrics, step=global_step)
@@ -400,16 +358,12 @@ def main(cfg:DictConfig):
         if cfg.log_with:
             accelerator.log(metrics, step=global_step)
 
-
         # Save state
         if (epoch + 1) % cfg.get("save_freq", 1) == 0:
             accelerator.save_state()
 
         if cfg.val_freq > 0 and (epoch + 1) % cfg.val_freq == 0:
-            torch.cuda.empty_cache()
-            with accelerator.no_sync(model):
-                metrics = validate()
-            torch.cuda.empty_cache()
+            metrics = validate()
             if cfg.log_with:
                 metrics = {("val/" + k): v for k, v in metrics.items()}
                 accelerator.log(metrics, step=global_step)

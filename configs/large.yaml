@@ -16,18 +16,19 @@ decimate: 0
 image_size: [256,256]
 onehot: True
 tag: 'train'
+augment: False
 
 # For 4GB GPU.
 train_dataloader:
   batch_size: 32
-  num_workers: 4
-  shuffle: False
-  drop_last: True
+  num_workers: 0
+  shuffle: True
+  drop_last: False
 
 val_freq: 5
 val_dataloader:
   batch_size: 1
-  num_workers: 2
+  num_workers: 0
   shuffle: False
   drop_last: False
 

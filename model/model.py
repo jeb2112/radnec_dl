@@ -225,7 +225,7 @@ def resnet(ckpt_dir,num_classes=2,dropout=False,onehot=True):
     
     if ckpt_dir is None:
         if dropout:
-            model = ResNetDropout(BasicDropoutBlock,[2,2,2,2],num_classes=num_classes,onehot=onehot)
+            model = ResNetDropout(BasicDropoutBlock,[2,2,2,2],num_classes=num_classes)
         else:
             model = torchvision.models.resnet18(weights=None,num_classes=num_classes)
     else:

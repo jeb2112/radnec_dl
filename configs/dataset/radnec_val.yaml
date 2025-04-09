@@ -4,7 +4,7 @@ dataset:
   lbldir: ${base_dir}/nnUNet_raw/Dataset140_RadNecClassify/labelsTv
   keep_in_memory: True
   format: png
-  shuffle: True
+  shuffle: False
   tag: 'val'
 
 transforms:

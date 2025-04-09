@@ -1,2 +1,3 @@
 _target_: psam.loss.Criterion
 pos_weight: null
+weights: null

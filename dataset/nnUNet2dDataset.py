@@ -33,6 +33,7 @@ class nnUNet2dDataset(Dataset):
         onehot=False,
         tag=None
     ):  
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.dataset = {}
         self.labeldir = lbldir
         self.imagedir = imgdir
@@ -53,6 +54,11 @@ class nnUNet2dDataset(Dataset):
             imgfiles = [(imgfiles[a],imgfiles[a+1],imgfiles[a+2]) for a in range(0,3*self.n,3) ]
 
         self.n = len(self.lbls)
+        n0 = len(np.where(np.array(self.lbls)==0)[0])
+        n1 = len(np.where(np.array(self.lbls)==1)[0])
+        nmax = max((n0,n1))
+        # for CrossEntropyLoss
+        self.weights = torch.tensor([nmax/n0,nmax/n1]).to(self.device)
 
         # optionally decimate dataset for fast eval/debug
         if decimate:
@@ -191,7 +197,7 @@ class nnUNet2dDataset(Dataset):
 
 
     # calculate weights for data imbalance for multi-hot encoding
-    # hard-coded for dataset
+    # currently hard-coded for dataset, edit as necessary
     def balancedata(self):
         listlbls = np.array(self.lbls)
         # hard-coded here, has to match the actual dataset
@@ -219,8 +225,6 @@ class nnUNet2dDataset(Dataset):
             pos_weight = None
         else:
             # Convert to PyTorch tensor for BCEWithLogitsLoss
-            pos_weight = torch.tensor(pos_weight, dtype=torch.float32)
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            pos_weight = pos_weight.to(device)
+            pos_weight = torch.tensor(pos_weight, dtype=torch.float32).to(self.device)
 
         return pos_weight

@@ -6,10 +6,10 @@ import torch.nn.functional as F
 from torchvision.ops import sigmoid_focal_loss
 
 class Criterion(nn.Module):
-    def __init__(self,pos_weight=None,onehot=False):
+    def __init__(self,pos_weight=None,onehot=False,weights=None):
         super().__init__()
         if onehot:
-            self.criterion = torch.nn.CrossEntropyLoss()
+            self.criterion = torch.nn.CrossEntropyLoss(weight=weights)
         else:
             self.criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 
