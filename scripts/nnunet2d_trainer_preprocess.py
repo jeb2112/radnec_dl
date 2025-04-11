@@ -65,6 +65,8 @@ else:
 
 segdir = os.path.join(datadir,'seg')
 nnunetdir = os.path.join(datadir,'nnUNet_raw','Dataset140_RadNecClassify')
+nnunetdir = None
+resnetdir = os.path.join(datadir,'resnet')
 
 normalslice_flag = False # flag for outputting normal brain cross-sections
 
@@ -118,17 +120,32 @@ if onehot:
 for ck in cases.keys():
     print(ck)
 
-    output_imgdir = os.path.join(nnunetdir,ck.replace('cases','images'))
-    output_lbldir = os.path.join(nnunetdir,ck.replace('cases','labels'))
-    try:
-        shutil.rmtree(output_imgdir)
-        shutil.rmtree(output_lbldir)
-        shutil.rmtree(output_lbldir+'_png')
-    except FileNotFoundError:
-        pass
-    os.makedirs(output_imgdir,exist_ok=True)
-    os.makedirs(output_lbldir,exist_ok=True)
-    os.makedirs(output_lbldir+'_png',exist_ok=True)
+    if nnunetdir: # nnunet format dirs
+        output_imgdir = os.path.join(nnunetdir,ck.replace('cases','images'))
+        output_lbldir = os.path.join(nnunetdir,ck.replace('cases','labels'))
+        try:
+            shutil.rmtree(output_imgdir)
+            shutil.rmtree(output_lbldir)
+            shutil.rmtree(output_lbldir+'_png')
+        except FileNotFoundError:
+            pass
+        os.makedirs(output_imgdir,exist_ok=True)
+        os.makedirs(output_lbldir,exist_ok=True)
+        os.makedirs(output_lbldir+'_png',exist_ok=True)
+    elif resnetdir: # resnet format dirs
+        output_traindir = os.path.join(resnetdir,'train')
+        output_valdir = os.path.join(resnetdir,'val')
+        output_pngdir = os.path.join(resnetdir,'png')
+        try:
+            shutil.rmtree(output_traindir)
+            shutil.rmtree(output_valdir)
+            shutil.rmtree(output_pngdir)
+        except FileNotFoundError:
+            pass
+        for l in range(len(np.unique(finaldx))): 
+            os.makedirs(os.path.join(output_traindir,str(l)),exist_ok=True)
+            os.makedirs(os.path.join(output_valdir,str(l)),exist_ok=True)
+        os.makedirs(output_pngdir,exist_ok=True)
 
     # arbitrary rotation for oblique slicing
     refvec = np.array([1,0,0],dtype=float)
@@ -265,10 +282,17 @@ for ck in cases.keys():
                             elif len(np.where(lblslice)[0]) > 49:
                                 for ktag,ik in zip(('0004','0003','0001'),('t1','flair+','t1+')):
                                     fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '_' + 'r' + k + '.png'
-                                    imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
-                                with open(os.path.join(output_lbldir,lblfname),'w') as fp:
-                                    tdx = tally[c]['dx']
-                                    json.dump({'dx':lbl},fp)   
+                                    if nnunetdir:
+                                        imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
+                                    elif resnetdir:
+                                        if 'Tr' in ck:
+                                            imsave(os.path.join(output_traindir,str(lbl[0]),fname),imgslice[ik],check_contrast=False)
+                                        elif 'Ts' in ck:
+                                            imsave(os.path.join(output_valdir,str(lbl[0]),fname),imgslice[ik],check_contrast=False)
+                                if nnunetdir:
+                                    with open(os.path.join(output_lbldir,lblfname),'w') as fp:
+                                        tdx = tally[c]['dx']
+                                        json.dump({'dx':lbl},fp)   
 
                                 # create test output pngs
                                 if True:
@@ -285,7 +309,10 @@ for ck in cases.keys():
                                     lbl_ovly  = (lbl_ovly*255).astype('uint8')
                                     fname = 'ovly_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + 'r' + k + '.png'
                                     cv2.putText(lbl_ovly, str(lbl), (5,30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
-                                    cv2.imwrite(os.path.join(output_lbldir+'_png',fname),cv2.cvtColor(lbl_ovly,cv2.COLOR_BGRA2RGBA))
+                                    if nnunetdir:
+                                        cv2.imwrite(os.path.join(output_lbldir+'_png',fname),cv2.cvtColor(lbl_ovly,cv2.COLOR_BGRA2RGBA))
+                                    elif resnetdir:
+                                        cv2.imwrite(os.path.join(output_pngdir,fname),cv2.cvtColor(lbl_ovly,cv2.COLOR_BGRA2RGBA))
                                     # plt.imshow(lbl_ovly)
                                     # plt.xticks([]),plt.yticks([])
                                     # plt.text(10,10,lbl,c='w')
