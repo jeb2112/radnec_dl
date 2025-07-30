@@ -9,7 +9,7 @@ import torch.nn.functional as F
 
 from model.model import nnunet_encoder
 import torchvision
-from torchvision.models import resnet
+from torchvision.models import resnet,googlenet,GoogLeNet_Weights
 
 class EncoderModel(nn.Module):
     def __init__(self, encoder, output_layer):
@@ -34,8 +34,9 @@ class ResNetModel(nn.Module):
 class nnUNetClassifier(nn.Module):
     def __init__(
         self,
-        encoder: nnunet_encoder,
-        resnet: resnet
+        encoder: nnunet_encoder = None,
+        resnet: resnet = None,
+        gnet: googlenet = None
     ):
         super().__init__()
         self.output_size = 2
@@ -53,6 +54,9 @@ class nnUNetClassifier(nn.Module):
 
         elif resnet:
             self.model = ResNetModel(resnet)
+            
+        elif gnet:
+            self.model = gnet
 
     def forward(
         self,

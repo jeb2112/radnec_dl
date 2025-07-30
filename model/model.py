@@ -5,6 +5,7 @@ import skimage.transform as trans
 import numpy as np
 import torchvision
 from torchvision.models.resnet import ResNet,BasicBlock,conv1x1
+from torchvision.models import googlenet,GoogLeNet_Weights
 import torch.nn as nn
 import torch
 from safetensors.torch import load_file
@@ -228,6 +229,15 @@ def resnet(ckpt_dir,num_classes=2,dropout=False,onehot=True):
             model = ResNetDropout(BasicDropoutBlock,[2,2,2,2],num_classes=num_classes)
         else:
             model = torchvision.models.resnet18(weights=None,num_classes=num_classes)
+    else:
+        model = load_statedict(ckpt_dir,num_classes=num_classes,dropout=dropout)
+
+    return model
+
+def gnet(ckpt_dir,num_classes=2,dropout=False,onehot=True):
+    
+    if ckpt_dir is None:
+        model = torchvision.models.googlenet(num_classes=num_classes)
     else:
         model = load_statedict(ckpt_dir,num_classes=num_classes,dropout=dropout)
 

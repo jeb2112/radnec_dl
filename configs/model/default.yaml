@@ -5,9 +5,17 @@ encoder:
 #   ckpt_dir: "/media/jbishop/WD4/brainmets/sunnybrook/radnec2/nnUNet_results/Dataset139_RadNec/nnUNetTrainer__nnUNetPlans__2d/fold_0/checkpoint_final.pth"
   ckpt_dir: null
 # resnet
-resnet:
-  _target_: model.model.resnet
+# resnet:
+#   _target_: model.model.resnet
+#   # ckpt_dir: "${base_dir}/outputs/2025-04-04/16-50-18/checkpoints/checkpoint_4"
+#   ckpt_dir: null
+#   num_classes: 2
+#   dropout: False
+# gnet
+gnet:
+  _target_: model.model.gnet
   # ckpt_dir: "${base_dir}/outputs/2025-04-04/16-50-18/checkpoints/checkpoint_4"
   ckpt_dir: null
   num_classes: 2
   dropout: False
+
