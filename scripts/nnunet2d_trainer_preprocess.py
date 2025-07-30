@@ -117,6 +117,21 @@ if onehot:
     lblRN_1h = 127
     lblTRN_1h = 255
 
+if resnetdir: # resnet format dirs
+    output_traindir = os.path.join(resnetdir,'train')
+    output_valdir = os.path.join(resnetdir,'val')
+    output_pngdir = os.path.join(resnetdir,'png')
+    try:
+        shutil.rmtree(output_traindir)
+        shutil.rmtree(output_valdir)
+        shutil.rmtree(output_pngdir)
+    except FileNotFoundError:
+        pass
+    for l in range(len(np.unique(finaldx))): 
+        os.makedirs(os.path.join(output_traindir,str(l)),exist_ok=True)
+        os.makedirs(os.path.join(output_valdir,str(l)),exist_ok=True)
+    os.makedirs(output_pngdir,exist_ok=True)
+
 for ck in cases.keys():
     print(ck)
 
@@ -132,20 +147,6 @@ for ck in cases.keys():
         os.makedirs(output_imgdir,exist_ok=True)
         os.makedirs(output_lbldir,exist_ok=True)
         os.makedirs(output_lbldir+'_png',exist_ok=True)
-    elif resnetdir: # resnet format dirs
-        output_traindir = os.path.join(resnetdir,'train')
-        output_valdir = os.path.join(resnetdir,'val')
-        output_pngdir = os.path.join(resnetdir,'png')
-        try:
-            shutil.rmtree(output_traindir)
-            shutil.rmtree(output_valdir)
-            shutil.rmtree(output_pngdir)
-        except FileNotFoundError:
-            pass
-        for l in range(len(np.unique(finaldx))): 
-            os.makedirs(os.path.join(output_traindir,str(l)),exist_ok=True)
-            os.makedirs(os.path.join(output_valdir,str(l)),exist_ok=True)
-        os.makedirs(output_pngdir,exist_ok=True)
 
     # arbitrary rotation for oblique slicing
     refvec = np.array([1,0,0],dtype=float)
@@ -280,22 +281,25 @@ for ck in cases.keys():
                             if skipslice:
                                 continue
                             elif len(np.where(lblslice)[0]) > 49:
-                                for ktag,ik in zip(('0004','0003','0001'),('t1','flair+','t1+')):
-                                    fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '_' + 'r' + k + '.png'
-                                    if nnunetdir:
-                                        imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
-                                    elif resnetdir:
-                                        if 'Tr' in ck:
-                                            imsave(os.path.join(output_traindir,str(lbl[0]),fname),imgslice[ik],check_contrast=False)
-                                        elif 'Ts' in ck:
-                                            imsave(os.path.join(output_valdir,str(lbl[0]),fname),imgslice[ik],check_contrast=False)
                                 if nnunetdir:
+                                    for ktag,ik in zip(('0004','0003','0001'),('t1','flair+','t1+')):
+                                        fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '_' + 'r' + k + '.png'
+                                        imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
                                     with open(os.path.join(output_lbldir,lblfname),'w') as fp:
                                         tdx = tally[c]['dx']
                                         json.dump({'dx':lbl},fp)   
+                                elif resnetdir:
+                                    rslice = np.zeros(imgslice[ik].shape+(3,),dtype='uint8')
+                                    for i,ik in enumerate(['t1','flair+','t1+']):
+                                        rslice[:,:,i] = imgslice[ik]
+                                    fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + 'r' + k + '.png'
+                                    if 'Tr' in ck:
+                                        imsave(os.path.join(output_traindir,str(lbl[0]),fname),rslice,check_contrast=False)
+                                    elif 'Ts' in ck or 'Tv' in ck:
+                                        imsave(os.path.join(output_valdir,str(lbl[0]),fname),rslice,check_contrast=False)
 
                                 # create test output pngs
-                                if True:
+                                if False:
                                     lbl_ros = np.where(lblslice)
                                     lbl_rost = np.where(lblslice == lblT)
                                     lbl_rosrn = np.where(lblslice == lblRN)
