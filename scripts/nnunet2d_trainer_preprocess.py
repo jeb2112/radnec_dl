@@ -1,6 +1,9 @@
 # script selects slices from each radnec segmented volume
 # and copies to a nnunet file and directory format for model training
 
+# original script was generalized to copy radnec data to a resnet file and directory format
+# this might be slightly broken still
+
 import numpy as np
 from sklearn.model_selection import train_test_split
 from scipy.spatial.transform import Rotation
@@ -54,21 +57,28 @@ def load_dataset(cpath,type='t1c'):
 defcolors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 onehot=True
 
-if os.name == 'posix':
-    uname = platform.uname()
-    if 'dellxps' in uname.node:
-        datadir = "/media/jbishop/WD4/brainmets/sunnybrook/radnec2/"
-    elif 'XPS-8950' in uname.node:
-        datadir = "/home/jbishop/data/radnec2/"
-else:
-    datadir = "D:\\data\\radnec2\\"
+# define the top-level data dir. ie for either radnec, or brats
+uname = platform.uname()
+if 'dellxps' in uname.node:
+    datadir = "/media/jbishop/WD4/brainmets/sunnybrook/radnec2/"
+elif 'XPS-8950' in uname.node:
+    datadir = "/home/jbishop/data/radnec2/"
 
+# for radnec, a separate segmentation dir could be provided
 segdir = os.path.join(datadir,'seg')
+
+# specify nnunet, resnet processing by assigning one
+# dir variable and leaving the other None
 nnunetdir = os.path.join(datadir,'nnUNet_raw','Dataset140_RadNecClassify')
 nnunetdir = None
 resnetdir = os.path.join(datadir,'resnet')
 
 normalslice_flag = False # flag for outputting normal brain cross-sections
+
+# obtain the case and finaldx information for radnec
+# previously this was done by tallying mask files in the segdir.
+# tbd - a file will be provided instead.
+# this section will have to be updated accordingly
 
 caselist = os.listdir(os.path.join(datadir,'seg'))
 cases = {}
