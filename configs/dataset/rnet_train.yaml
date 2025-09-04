@@ -1,0 +1,28 @@
+# config for training gnet/resnet on a conventional dir structure
+
+dataset:
+  name: rnet_train
+  datadir: ${base_dir}/radnec_rnet/resnet/train
+  keep_in_memory: True
+  format: binary
+  rgb: False
+  shuffle: True
+  tag: 'train'
+
+transforms:
+  # _target_: torchvision.transforms.Compose
+  # transforms:
+  #   - _target_: torchvision.transforms.RandomHorizontalFlip
+  #     p: 0.5
+  #   - _target_: torchvision.transforms.RandomRotation
+  #     degrees: 15
+  #   - _target_: torchvision.transforms.ColorJitter
+  #     brightness: 0.2
+  #     contrast: 0.2
+  #     saturation: 0.2
+  #     hue: 0.1  
+  _target_: transforms.aug.KorniaAugmentations
+  flip_p: 0.5
+  rotation_degrees: 15
+  brightness: 0.2
+  contrast: 0.2

@@ -1,0 +1,18 @@
+# config for training resnet/gnet on conventional dir structure
+
+dataset:
+  name: rnet_val
+  datadir: ${base_dir}/radnec_rnet/resnet/val
+  keep_in_memory: True
+  format: binary
+  rgb: False
+  shuffle: False
+  tag: 'val'
+
+transforms:
+  _target_: transforms.aug.KorniaAugmentations
+  flip_p: 0.5
+  rotation_degrees: 15
+  brightness: 0.2
+  contrast: 0.2
+  

@@ -1,7 +1,7 @@
 defaults:
-  - dataset@train_dataset: radnec_train 
-  - dataset@val_dataset: radnec_val
-  - dataset@test_dataset: radnec_test
+  - dataset@train_dataset: rnet_train 
+  - dataset@val_dataset: rnet_val
+  - dataset@test_dataset: rnet_test
   - loss: default # 
   - paths
   - model: default # default.yaml 
@@ -16,7 +16,7 @@ decimate: 0
 image_size: [256,256]
 onehot: True
 tag: 'train'
-augment: False
+augment: True
 
 # For 4GB GPU.
 train_dataloader:

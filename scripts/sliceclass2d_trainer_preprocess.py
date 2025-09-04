@@ -237,13 +237,13 @@ for ck in cases.keys():
                         lblslice = np.moveaxis(Rlbls[k],dim,0)[slice]
                         imgslice = {}
                         rshape = tuple(np.roll(np.array(np.shape(Rimgs[k]['t1+'])),dim))[1:]
-                        rslice = np.zeros(rshape+(4,),dtype='float')
+                        rslice = np.zeros((4,) + rshape,dtype='float')
                         mslice = np.zeros_like(rslice)
                         for i,ik in enumerate(['flair+','t1+','adc','dwi']):
                             imgslice[ik] = np.moveaxis(Rimgs[k][ik],dim,0)[slice]
-                            rslice[:,:,i] = imgslice[ik] 
+                            rslice[i,:,:] = imgslice[ik] 
                             # mask the image with the lesion
-                            mslice[:,:,i] = imgslice[ik] * (lblslice / lblRN)
+                            mslice[i,:,:] = imgslice[ik] * (lblslice / lblRN)
 
                         skipslice = False
                         # exclude lesion slices with insufficient pixels. in the 2d slice-class
@@ -268,10 +268,10 @@ for ck in cases.keys():
                             if True:
                                 lbl_ros = np.where(lblslice)
 
-                                lbl_img = np.ones(np.shape(rslice)[:2]+(4,))
-                                lbl_img[:,:,:3] = mslice[:,:,:3]/np.max(mslice[:,:,:3])
+                                lbl_img = np.ones(np.shape(rslice)[1:]+(4,))
+                                lbl_img[:,:,:3] = np.moveaxis(mslice[:3,:,:],0,2)/np.max(mslice[:3,:,:])
                                 lbl_ovly = np.ones_like(lbl_img)
-                                nslice = ( rslice[:,:,0]-np.min(rslice[:,:,0])) / (np.max(rslice[:,:,0])-np.min(rslice[:,:,0])) 
+                                nslice = ( rslice[0]-np.min(rslice[0])) / (np.max(rslice[0])-np.min(rslice[0])) 
                                 lbl_ovly[:,:,:3] = np.stack([nslice]*3,axis=-1)
                                 lbl_ovly[lbl_ros] = colors.to_rgb(defcolors[0]) +(0.5,)
 

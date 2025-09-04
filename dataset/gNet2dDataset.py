@@ -41,20 +41,22 @@ class gNet2dDataset(Dataset):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.datadir = datadir
         self.onehot = onehot
+        self.rgb = rgb
 
         self.classes = sorted(os.listdir(self.datadir))
         self.num_classes = len(self.classes)
 
         # create list of all classes and files
         self.imgs = []
+        self.imgfiles = []
         self.lbls = []
         self.cases = {}
         self.in_memory = True
         for c in self.classes:
             cpath = os.path.join(self.datadir,c)
             imgfiles = sorted(os.listdir(cpath))
-            self.imgfiles.append([os.path.join(cpath,i) for i in imgfiles])
-            self.lbls.append([c]*len(imgfiles))
+            self.imgfiles += [os.path.join(cpath,i) for i in imgfiles]
+            self.lbls += [int(c)]*len(imgfiles)
 
         self.n = len(self.lbls)
         n0 = len(np.where(np.array(self.lbls)==0)[0])
@@ -91,11 +93,17 @@ class gNet2dDataset(Dataset):
             self.cases = {}
             self.in_memory = True
             for imgfile in self.imgfiles:
-                img = Image.open(imgfile)
-                img = ImageOps.pad(img,self.image_size)
-                img = np.array(img.getdata()).reshape(self.image_size[0],self.image_size[1]).astype(np.float32)
-                img /= 255.0
-                self.imgs.append(img)
+                if self.rgb:
+                    img = Image.open(imgfile)
+                    img = ImageOps.pad(img,self.image_size)
+                    img_arr = np.array(img.getdata()).reshape(self.image_size[0],self.image_size[1]).astype(np.float32)
+                    img_arr /= 255.0
+                else:
+                    with open(imgfile,'rb') as fp:
+                        img_arr = np.fromfile(fp,dtype=np.float64)
+                        img_arr = np.reshape(img_arr,(4,233,197))
+                        img_arr = np.pad(img_arr,pad_width=((0,0),(11,12),(29,30)),mode='constant')
+                self.imgs.append(img_arr)
 
         else: # load from file dynamically. not coded yet
             imgs = sorted(os.listdir(self.imagedir))
@@ -114,9 +122,10 @@ class gNet2dDataset(Dataset):
         if self.in_memory:
             inputs['img'] = torch.Tensor(self.imgs[idx])
             if self.transform and True:
-                inputs['img'] = self.transform(inputs['img'])
+                # fix singleton dimension
+                inputs['img'] = self.transform(inputs['img']).squeeze()
 
-            inputs['lbl'] = torch.tensor(self.lbls[idx][0],dtype=torch.long)  
+            inputs['lbl'] = torch.tensor(self.lbls[idx],dtype=torch.long)  
 
         else: # read from file. not coded yet.
 

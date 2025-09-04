@@ -23,13 +23,14 @@ from torch.utils.data import ConcatDataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchinfo import summary
 
-from transforms import Compose
+from transforms.transforms import Compose
 # from pc_sam.model.loss import compute_iou
 # from pc_sam.model.pc_sam import PointCloudSAM
 from utils.torch_utils import replace_with_fused_layernorm, worker_init_fn
 
 from dataset.nnUNet2dDataset import nnUNet2dDataset
-from model.nnUNetClassifier import nnUNetClassifier
+from dataset.gNet2dDataset import gNet2dDataset
+from model.RadNecClassifier import RadNecClassifier
 from model.model import load_statedict
 from psam.loss import Criterion
 
@@ -83,13 +84,18 @@ OmegaConf.register_new_resolver('computemustd',compute_mu_std)
 
 # dataset functions
 def build_dataset(cfg,decimate=0,num_classes=2,onehot=False,transform=None):
-    dataset = nnUNet2dDataset(cfg.dataset.imgdir,cfg.dataset.lbldir,
+    # dataset = nnUNet2dDataset(cfg.dataset.imgdir,cfg.dataset.lbldir,
+    #                                 transform=transform,
+    #                                 decimate=decimate,
+    #                                 in_memory=cfg.dataset.keep_in_memory,
+    #                                 rgb=True,
+    #                                 num_classes=num_classes,
+    #                                 onehot=onehot)
+    dataset = gNet2dDataset(cfg.dataset.datadir,
                                     transform=transform,
                                     decimate=decimate,
                                     in_memory=cfg.dataset.keep_in_memory,
-                                    rgb=True,
-                                    num_classes=num_classes,
-                                    onehot=onehot)
+                                    rgb=cfg.dataset.rgb)
     return dataset
 
 def build_datasets(cfg):
@@ -151,7 +157,7 @@ def main(cfg:DictConfig):
     # Setup model
     # ---------------------------------------------------------------------------- #
     set_seed(seed)
-    model: nnUNetClassifier = hydra.utils.instantiate(cfg.model)
+    model: RadNecClassifier = hydra.utils.instantiate(cfg.model)
     model.train()
     if False:
         # a keras-like summary, but requires an arg for lbl and (1,0,0) doesn't work

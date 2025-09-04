@@ -1,0 +1,14 @@
+defaults:
+  - /model: modeltest # with checkpoint 
+
+dataset:
+  name: rnet_test
+  datadir: ${base_dir}/radnec_rnet/resnet/test
+  keep_in_memory: True
+  format: binary
+  rgb: False
+  shuffle: False
+  tag: 'test'
+
+
+  
