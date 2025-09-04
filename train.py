@@ -33,13 +33,22 @@ from model.nnUNetClassifier import nnUNetClassifier
 from model.model import load_statedict
 from psam.loss import Criterion
 
-# convenience functions for config .yaml's
+# convenience functions for config .yaml's 
+# 
+# for testing on different machines
+# returns a root directory as a general reference
+# originally this had a specific project (radnec2) included
+# it should really just reference no more than the general data directory
+# and specific projects be listed in the config .yaml's
 def get_uname():
     uname = platform.uname()
     if 'xps15' in uname.node:
         return '/media/jbishop/WD4/brainmets/sunnybrook/radnec2'
     elif 'XPS-8950' in uname.node:
-        return '/home/jbishop/data/radnec2'
+        # return '/home/jbishop/data/radnec2'
+        return '/home/jbishop/data'
+    elif 'amzn' in uname.mode:
+        return '/home/ec2-user'
     assert False
 
 def compute_mu_std(dataset):

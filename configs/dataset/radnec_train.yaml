@@ -1,3 +1,5 @@
+# config for training resnet on a nnunet dir structure
+
 dataset:
   name: radnec_train
   imgdir: ${base_dir}/nnUNet_raw/Dataset140_RadNecClassify/imagesTr

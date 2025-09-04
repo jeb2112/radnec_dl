@@ -1,9 +1,8 @@
-# config for training resnet on nnunet dir structure
+# config for training resnet/gnet on conventional dir structure
 
 dataset:
-  name: radnec_val
-  imgdir: ${base_dir}/nnUNet_raw/Dataset140_RadNecClassify/imagesTv
-  lbldir: ${base_dir}/nnUNet_raw/Dataset140_RadNecClassify/labelsTv
+  name: gnet_val
+  datadir: ${base_dir}/met-gbm/gnet/val
   keep_in_memory: True
   format: png
   shuffle: False
