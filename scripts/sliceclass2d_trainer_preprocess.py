@@ -231,7 +231,7 @@ for ck in cases.keys():
                         lbl = 0
                         if xls.loc[xls['ID'] == c,'Final Dx'].values[0] == 'T':                          
                             if slice in range(int(xls.loc[xls['ID']==c,'Tumor slices (start)'].values[0]),
-                                                int(xls.loc[xls['ID']==c,'Tumor slices (end)'].values[0])):
+                                                int(xls.loc[xls['ID']==c,'Tumor slices (end)'].values[0])+1):
                                 lbl = 1
 
                         lblslice = np.moveaxis(Rlbls[k],dim,0)[slice]
